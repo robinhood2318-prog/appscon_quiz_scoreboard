@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz buzzer – screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #12162B; --surface: #1C2242; --line: #2B3260;
+  --text: #F2F4FF; --muted: #8D95C2; --alert: #FF6B6B;
+  font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; }
+body { display: grid; grid-template-rows: auto 1fr auto; }
+body.fs:not(.panel-open) { cursor: none; }
+
+.bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; padding: 2.4vh 3vw 0; }
+.event { text-align: center; }
+.ev1 { display: block; font-weight: 800; font-size: 2.8vw; line-height: 1.15; }
+.ev2 { display: block; color: var(--muted); font-size: 2.1vw; font-weight: 600; margin-top: .4vh; }
+.qno { justify-self: start; }
+.clock { justify-self: end; }
+.qno { font-size: 1.9vw; color: var(--muted); }
+.clock { font-size: 5vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.clock.idle { color: var(--muted); }
+.clock.low { color: var(--alert); }
+.clock[hidden] { display: block; visibility: hidden; }
+
+.stage { display: grid; place-items: center; }
+.status { font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; text-align: center; padding: 0 3vw; }
+.status[data-phase="locked"] { color: var(--muted); }
+.status[data-phase="flash"] { color: var(--c); }
+
+.teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.4vw; padding: 0 3vw 3.5vh; }
+.tile { position: relative; background: var(--surface); border-radius: 14px; border-top: 1.2vh solid var(--c); padding: 2vh 1.4vw 1.8vh; min-width: 0; }
+.tile .nm { font-size: 2vw; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4vw; }
+.tile .sc { font-size: 6.4vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.tile .pr { font-size: 1.1vw; color: var(--muted); display: flex; align-items: center; gap: .5vw; }
+.tile .dot { width: .8vw; height: .8vw; border-radius: 50%; background: #4A5078; flex: none; }
+.tile .pr.on .dot { background: #2DC653; }
+.tile .badge { position: absolute; top: 1.8vh; right: 1.2vw; background: var(--c); color: var(--ink); font-weight: 800; border-radius: 999px; padding: .3vh .8vw; font-size: 1.4vw; }
+.tile.turn { box-shadow: 0 0 0 4px var(--c); }
+.tile.out { opacity: .45; }
+
+/* The one big moment: the buzzing team's colour takes the whole screen. */
+.flood { position: fixed; inset: 0; z-index: 5; background: var(--c); color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.4vh; text-align: center; }
+.flood[hidden] { display: none; }
+.flood.pop { animation: pop .16s ease-out; }
+@keyframes pop { from { transform: scale(1.04); opacity: .6; } to { transform: none; opacity: 1; } }
+.flood-sub { font-size: 2.6vw; font-weight: 600; opacity: .8; }
+.flood-name { font-size: 11vw; font-weight: 800; line-height: .95; letter-spacing: -0.035em; padding: 0 4vw; overflow-wrap: anywhere; }
+.answer { width: 11vw; height: 11vw; border-radius: 50%; border: .6vw solid currentColor; display: grid; place-items: center;
+  font-size: 5.6vw; font-weight: 800; font-variant-numeric: tabular-nums; }
+.answer:empty { display: none; }
+.answer.up { font-size: 2.6vw; }
+.queue { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 1vw; padding: 0 4vw; margin: 1vh 0 0; }
+.queue li { background: rgba(0,0,0,.16); padding: .8vh 1.3vw; border-radius: 999px; font-size: 1.6vw; font-weight: 600; }
+.queue li.cur { background: var(--ink); color: var(--c); }
+.queue li.out { text-decoration: line-through; opacity: .6; }
+
+.join { position: fixed; inset: 0; z-index: 8; background: rgba(18,22,43,.97); display: flex; flex-direction: column; justify-content: center; gap: 4vh; padding: 4vh 4vw; }
+.join[hidden] { display: none; }
+.join h2 { margin: 0; font-size: 3vw; font-weight: 800; text-align: center; }
+.join h2 span { display: block; font-size: 1.5vw; font-weight: 400; color: var(--muted); margin-top: 1vh; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2vw; }
+.card { background: var(--surface); border-radius: 14px; border-top: 1.2vh solid var(--c); padding: 2.4vh 1.4vw; text-align: center; min-width: 0; }
+.card .nm { font-size: 2vw; font-weight: 800; margin-bottom: 2vh; overflow-wrap: anywhere; }
+.card .qr { background: #fff; padding: 1vw; border-radius: 10px; display: inline-block; }
+.card .qr img, .card .qr canvas { display: block; width: 15vw !important; height: 15vw !important; }
+.card .url { font-size: .9vw; color: var(--muted); margin-top: 1.4vh; overflow-wrap: anywhere; }
+
+.panel { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 92vw; z-index: 10; overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--line); padding: 22px 22px 40px; font-size: 15px; cursor: auto; }
+.panel[hidden] { display: none; }
+.panel h2 { margin: 0 0 14px; font-size: 22px; }
+.panel h3 { margin: 24px 0 10px; font-size: 16px; color: var(--muted); font-weight: 600; }
+.panel .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.panel button { font: inherit; font-weight: 600; background: var(--line); color: var(--text); border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; }
+.panel button.primary { background: var(--text); color: var(--bg); }
+.panel button:hover { filter: brightness(1.15); }
+.panel input { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
+.panel label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 8px 0; }
+.panel label input { width: 90px; text-align: right; }
+.trow { display: grid; grid-template-columns: 14px 1fr 80px; gap: 10px; align-items: center; margin: 8px 0; }
+.trow .sw { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
+.trow input { width: 100%; }
+.trow input.score { text-align: right; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+.keys dt { font-weight: 800; }
+.keys dd { margin: 0; color: var(--muted); }
+:focus-visible { outline: 3px solid #FFB703; outline-offset: 2px; }
+
+.conn { position: fixed; left: 3vw; bottom: .8vh; font-size: 13px; color: var(--muted); z-index: 11; }
+.conn.bad { color: var(--alert); font-weight: 600; }
+.conn.ok:not(.show) { display: none; }
+
+.start { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; place-items: center; text-align: center; cursor: pointer; }
+.start[hidden] { display: none; }
+.start b { display: block; font-size: 4vw; font-weight: 800; }
+.start span { display: block; margin-top: 1.5vh; font-size: 1.6vw; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .flood.pop { animation: none; } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="qno" id="qno">Ready</div>
+  <div class="event"><span class="ev1">APPSCON 2026 – Quiz competition</span><span class="ev2">Buzzer round</span></div>
+  <div class="clock idle" id="clock">1:00</div>
+</header>
+<main class="stage"><div class="status" id="status" data-phase="locked">Get ready</div></main>
+<section class="teams" id="teams" aria-label="Scores"></section>
+
+<div class="flood" id="flood" hidden aria-live="assertive">
+  <div class="flood-sub" id="floodSub"></div>
+  <div class="flood-name" id="floodName"></div>
+  <div class="answer" id="answer"></div>
+  <ol class="queue" id="queue"></ol>
+</div>
+
+<div class="join" id="join" hidden>
+  <h2>Scan your team’s code<span>The buzzer opens on your phone. Keep the screen on during the round.</span></h2>
+  <div class="cards" id="cards"></div>
+</div>
+
+<aside class="panel" id="panel" hidden>
+  <h2>Quizmaster controls</h2>
+  <div class="btns">
+    <button class="primary" id="bToggle">Open buzzers</button>
+    <button id="bJoin">Join codes</button>
+    <button id="bFs">Full screen</button>
+  </div>
+  <h3>Teams and scores</h3>
+  <div id="teamRows"></div>
+  <div class="btns">
+    <button id="bUndo">Undo last score</button>
+    <button id="bReset">Reset scores</button>
+  </div>
+  <h3>Settings</h3>
+  <label>Points for a correct answer <input type="number" id="sCorrect"></label>
+  <label>Points for a wrong answer <input type="number" id="sWrong"></label>
+  <label>Answer time after a buzz (s, 0 = off) <input type="number" id="sAnswer" min="0"></label>
+  <label>Round clock (s, 0 = hidden) <input type="number" id="sRound" min="0"></label>
+  <label>Tie window (ms) <input type="number" id="sTie" min="100" max="1500" step="50"></label>
+  <h3>Keys</h3>
+  <dl class="keys">
+    <dt>Space</dt><dd>Open buzzers for the next question, or lock them</dd>
+    <dt>C</dt><dd>Correct: adds points and locks the buzzers</dd>
+    <dt>W</dt><dd>Wrong: deducts points and passes to the next team in line</dd>
+    <dt>N</dt><dd>Pass to the next team in line, no points</dd>
+    <dt>1–4</dt><dd>Buzz for a team from this keyboard (if a phone fails)</dd>
+    <dt>U</dt><dd>Undo the last score</dd>
+    <dt>T / Y</dt><dd>Start or pause the round clock / reset it (only when a round clock is set)</dd>
+    <dt>J</dt><dd>Show or hide the join codes</dd>
+    <dt>F</dt><dd>Full screen</dd>
+    <dt>P</dt><dd>Show or hide this panel</dd>
+  </dl>
+</aside>
+<div class="conn" id="conn">Connecting…</div>
+<div class="start" id="start"><div><b>Click anywhere to start</b><span>The quiz screen opens in full screen</span></div></div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js?v=4"></script>
+<script src="relay.js?v=1"></script>
+<script>
+(() => {
+  'use strict';
+  const C = window.QUIZ;
+  const $ = s => document.querySelector(s);
+  const KEY = 'appscon-quiz-buzzer-v2';
+  const DEF = { names: C.teams.map(t => t.name), scores: [0, 0, 0, 0], q: 0,
+                correct: 10, wrong: -5, answerSec: 5, roundSec: 0, tieMs: 400 };
+  let cfg;
+  try { cfg = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+  catch (e) { cfg = Object.assign({}, DEF); }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
+
+  const S = { phase: 'locked', order: [], cur: 0, results: {}, flash: null };
+  let pending = [], flushTimer = null, R = null, connState = 'connecting';
+  const phones = {};
+  const history = [];
+
+  const color = i => C.teams[i].color;
+  const name = i => (cfg.names[i] || '').trim() || ('Team ' + (i + 1));
+  const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' })[n] || n + 'th';
+  const fmtPts = p => (p > 0 ? '+' : '\u2212') + Math.abs(p);
+  const answering = () => (S.cur < S.order.length ? S.order[S.cur].team : -1);
+
+  /* ---------- sound ---------- */
+  let AC = null;
+  function ac() {
+    if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    if (AC && AC.state === 'suspended') AC.resume();
+    preloadBuzzSound(AC);
+    return AC;
+  }
+  function tone(freq, dur, type, vol, when) {
+    const a = ac(); if (!a) return;
+    const t = a.currentTime + (when || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.18, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.03);
+  }
+  const sBuzz = i => playTeamSound(ac(), i, 0.3);
+  const sOpen = () => { tone(880, 0.08, 'sine', 0.22); tone(1320, 0.14, 'sine', 0.22, 0.09); };
+  const sCorrect = () => { tone(660, 0.1, 'triangle', 0.25); tone(880, 0.1, 'triangle', 0.25, 0.1); tone(1100, 0.25, 'triangle', 0.25, 0.2); };
+  const sWrong = () => tone(160, 0.4, 'square', 0.2);
+  const sTimeUp = () => tone(220, 0.7, 'sawtooth', 0.2);
+
+  /* ---------- link ---------- */
+  function publishState() {
+    if (!R) return;
+    const t0 = S.order.length ? S.order[0].t : 0;
+    R.send('state', {
+      q: cfg.q, phase: S.phase, cur: S.cur,
+      order: S.order.map(o => ({ team: o.team + 1, gap: o.t - t0 })),
+      results: S.results,
+      teams: C.teams.map((t, i) => ({ name: name(i), color: t.color })),
+      ts: Date.now()
+    }, true);
+  }
+
+  R = Relay.connect({
+    prefix: 'screen',
+    will: { topic: 'status', payload: { online: false } },
+    subscribe: ['ping', 'buzz'],
+    onConnect() { R.send('status', { online: true, ts: Date.now() }, true); publishState(); },
+    onStatus(s) { connState = s; renderConn(); },
+    onMessage(topic, m) {
+      const now = Date.now();
+      if (topic === 'ping') {
+        R.send('pong/' + m.cid, { n: m.n, t0: m.t0, th: now });
+        if (m.team >= 1 && m.team <= 4) phones[m.cid] = { team: m.team - 1, last: now, rtt: m.rtt };
+      } else if (topic === 'buzz') {
+        if (phones[m.cid]) phones[m.cid].last = now;
+        if (m.q !== cfg.q) return;
+        // Phones stamp the press in this laptop's clock; keep the stamp within sane bounds.
+        let t = typeof m.t === 'number' ? m.t : now;
+        if (t > now) t = now;
+        if (t < now - 2000) t = now - 2000;
+        onBuzz(m.team - 1, t);
+      }
+    }
+  });
+  window.addEventListener('beforeunload', () => R && R.send('status', { online: false }, true));
+
+  /* ---------- buzz logic ---------- */
+  function onBuzz(i, t) {
+    if (!(i >= 0 && i <= 3) || S.phase !== 'open') return;
+    if (S.order.some(o => o.team === i) || pending.some(p => p.team === i)) return;
+    pending.push({ team: i, t });
+    if (S.cur < S.order.length) flush();                    // someone is answering: just queue
+    else if (!flushTimer) flushTimer = setTimeout(flush, cfg.tieMs); // wait for near-simultaneous buzzes
+  }
+  function flush() {
+    clearTimeout(flushTimer); flushTimer = null;
+    if (!pending.length) return;
+    const wasIdle = S.cur >= S.order.length;
+    pending.sort((a, b) => a.t - b.t);
+    S.order.push(...pending); pending = [];
+    if (wasIdle) { sBuzz(S.order[S.cur].team); startAnswer(); }
+    else tone(300, 0.08, 'square', 0.08);
+    render(); publishState();
+  }
+  function clearPending() { pending = []; clearTimeout(flushTimer); flushTimer = null; }
+
+  function openBuzzers() {
+    clearPending(); stopAnswer();
+    cfg.q++; save();
+    S.phase = 'open'; S.order = []; S.cur = 0; S.results = {}; S.flash = null;
+    sOpen(); render(); publishState();
+  }
+  function lock() {
+    clearPending(); stopAnswer();
+    S.phase = 'locked'; S.cur = S.order.length;
+    render(); publishState();
+  }
+  const toggle = () => (S.phase === 'open' ? lock() : openBuzzers());
+
+  function addScore(i, pts) {
+    cfg.scores[i] += pts; history.push({ i, pts }); save();
+    S.results[i + 1] = (S.results[i + 1] || 0) + pts;
+    S.flash = { team: i, pts, until: Date.now() + 2600 };
+    setTimeout(render, 2700);
+  }
+  function correct() {
+    const i = answering(); if (i < 0) return;
+    addScore(i, cfg.correct); sCorrect(); lock();
+  }
+  function wrong() {
+    const i = answering(); if (i < 0) return;
+    if (cfg.wrong) addScore(i, cfg.wrong);
+    sWrong(); next();
+  }
+  function next() {
+    if (answering() < 0) return;
+    S.cur++; stopAnswer();
+    if (S.cur < S.order.length) { sBuzz(S.order[S.cur].team); startAnswer(); }
+    render(); publishState();
+  }
+  function undo() {
+    const h = history.pop(); if (!h) return;
+    cfg.scores[h.i] -= h.pts; save();
+    if (S.results[h.i + 1] !== undefined) S.results[h.i + 1] -= h.pts;
+    S.flash = null; render(); renderPanel(); publishState();
+  }
+
+  /* ---------- answer countdown ---------- */
+  let ansLeft = 0, ansTimer = null;
+  function startAnswer() {
+    stopAnswer();
+    ansLeft = cfg.answerSec;
+    if (ansLeft > 0) ansTimer = setInterval(() => {
+      ansLeft--; renderAnswer();
+      if (ansLeft <= 0) { stopAnswer(); sTimeUp(); }
+    }, 1000);
+    renderAnswer();
+  }
+  function stopAnswer() { clearInterval(ansTimer); ansTimer = null; }
+  function renderAnswer() {
+    const el = $('#answer');
+    if (!cfg.answerSec) { el.textContent = ''; return; }
+    el.textContent = ansLeft > 0 ? ansLeft : 'Time';
+    el.classList.toggle('up', ansLeft <= 0);
+  }
+
+  /* ---------- round clock ---------- */
+  let clockLeft = cfg.roundSec, clockRun = false, clockT = null, clockEnd = 0;
+  function clockToggle() {
+    if (!cfg.roundSec) return;
+    if (clockRun) {
+      clockLeft = Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000));
+      clockRun = false; clearInterval(clockT);
+    } else {
+      if (clockLeft <= 0) clockLeft = cfg.roundSec;
+      if (clockLeft <= 0) return;
+      clockRun = true; clockEnd = Date.now() + clockLeft * 1000;
+      clockT = setInterval(tickClock, 200);
+    }
+    renderClock();
+  }
+  function tickClock() {
+    const left = Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000));
+    if (left !== clockLeft) { clockLeft = left; renderClock(); }
+    if (left <= 0) {
+      clearInterval(clockT); clockRun = false; sTimeUp();
+      if (S.phase === 'open') lock();
+      renderClock();
+    }
+  }
+  function clockReset() { clearInterval(clockT); clockRun = false; clockLeft = cfg.roundSec; renderClock(); }
+  function renderClock() {
+    const el = $('#clock');
+    el.hidden = !cfg.roundSec;
+    el.textContent = Math.floor(clockLeft / 60) + ':' + String(clockLeft % 60).padStart(2, '0');
+    el.classList.toggle('idle', !clockRun && clockLeft > 0);
+    el.classList.toggle('low', clockLeft <= 10);
+  }
+
+  /* ---------- screen ---------- */
+  const tiles = C.teams.map((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    el.style.setProperty('--c', t.color); el.style.setProperty('--ink', inkFor(t.color));
+    el.innerHTML = '<div class="nm"></div><div class="sc"></div><div class="pr"><span class="dot"></span><span class="pt">No phone</span></div><div class="badge" hidden></div>';
+    $('#teams').appendChild(el);
+    return el;
+  });
+
+  function render() {
+    $('#qno').textContent = cfg.q ? 'Question ' + cfg.q : 'Ready';
+    $('#bToggle').textContent = S.phase === 'open' ? 'Lock buzzers' : 'Open buzzers';
+
+    const st = $('#status');
+    const fl = S.flash && Date.now() < S.flash.until ? S.flash : null;
+    if (fl) {
+      st.textContent = name(fl.team) + '  ' + fmtPts(fl.pts);
+      st.dataset.phase = 'flash'; st.style.setProperty('--c', color(fl.team));
+    } else {
+      st.textContent = S.phase === 'open' ? 'Buzz now' : (cfg.q ? 'Buzzers locked' : 'Get ready');
+      st.dataset.phase = S.phase;
+    }
+
+    tiles.forEach((el, i) => {
+      el.querySelector('.nm').textContent = name(i);
+      el.querySelector('.sc').textContent = cfg.scores[i];
+      const p = S.order.findIndex(o => o.team === i);
+      const b = el.querySelector('.badge');
+      b.hidden = p < 0; if (p >= 0) b.textContent = ordinal(p + 1);
+      el.classList.toggle('turn', p >= 0 && p === S.cur);
+      el.classList.toggle('out', S.phase === 'open' && p >= 0 && p < S.cur);
+    });
+
+    const a = answering(), fd = $('#flood');
+    if (a >= 0) {
+      fd.hidden = false;
+      fd.style.setProperty('--c', color(a)); fd.style.setProperty('--ink', inkFor(color(a)));
+      const key = a + '-' + S.cur;
+      if (fd.dataset.key !== key) { fd.dataset.key = key; fd.classList.remove('pop'); void fd.offsetWidth; fd.classList.add('pop'); }
+      $('#floodSub').textContent = S.cur === 0 ? 'First to buzz' : 'Next in line';
+      $('#floodName').textContent = name(a);
+      const q = $('#queue'); q.textContent = '';
+      if (S.order.length > 1) S.order.forEach((o, k) => {
+        const li = document.createElement('li');
+        li.textContent = ordinal(k + 1) + '  ' + name(o.team) + (k ? '  +' + ((o.t - S.order[0].t) / 1000).toFixed(2) + ' s' : '');
+        if (k === S.cur) li.className = 'cur'; else if (k < S.cur) li.className = 'out';
+        q.appendChild(li);
+      });
+    } else { fd.hidden = true; fd.dataset.key = ''; }
+  }
+
+  function renderPresence() {
+    const now = Date.now();
+    tiles.forEach((el, i) => {
+      const live = Object.values(phones).filter(p => p.team === i && now - p.last < 8000);
+      const rtts = live.map(p => p.rtt).filter(x => typeof x === 'number');
+      const pr = el.querySelector('.pr');
+      pr.classList.toggle('on', live.length > 0);
+      pr.querySelector('.pt').textContent = live.length
+        ? (live.length > 1 ? live.length + ' phones' : 'Phone ready') + (rtts.length ? ', ' + Math.min(...rtts) + ' ms' : '')
+        : 'No phone';
+    });
+  }
+
+  function renderConn() {
+    const el = $('#conn');
+    const ok = connState === 'online';
+    el.textContent = ok ? 'Connected to the buzzer relay' : 'Not connected to the buzzer relay. Check the internet, it retries every second. Keys 1–4 still work.';
+    el.className = 'conn ' + (ok ? 'ok' : 'bad') + (document.body.classList.contains('panel-open') ? ' show' : '');
+  }
+
+  /* ---------- join codes ---------- */
+  function toggleJoin(force) {
+    const j = $('#join');
+    const show = typeof force === 'boolean' ? force : j.hidden;
+    j.hidden = !show;
+    if (!show) return;
+    const cards = $('#cards'); cards.textContent = '';
+    C.teams.forEach((t, i) => {
+      const url = new URL('buzzer.html?team=' + (i + 1), location.href).href;
+      const card = document.createElement('div');
+      card.className = 'card'; card.style.setProperty('--c', t.color);
+      card.innerHTML = '<div class="nm"></div><div class="qr"></div><div class="url"></div>';
+      card.querySelector('.nm').textContent = name(i);
+      card.querySelector('.url').textContent = url.replace(/^https?:\/\//, '');
+      cards.appendChild(card);
+      try { new QRCode(card.querySelector('.qr'), { text: url, width: 320, height: 320, correctLevel: QRCode.CorrectLevel.M }); }
+      catch (e) { card.querySelector('.qr').textContent = 'QR unavailable'; }
+    });
+  }
+
+  /* ---------- panel ---------- */
+  function togglePanel(force) {
+    const p = $('#panel');
+    const show = typeof force === 'boolean' ? force : p.hidden;
+    p.hidden = !show;
+    document.body.classList.toggle('panel-open', show);
+    if (show) renderPanel();
+    renderConn();
+  }
+  function renderPanel() {
+    const box = $('#teamRows'); box.textContent = '';
+    C.teams.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'trow'; row.style.setProperty('--c', t.color);
+      row.innerHTML = '<span class="sw"></span><input class="nmi" aria-label="Team name"><input class="score" type="number" aria-label="Score">';
+      const ni = row.querySelector('.nmi'), si = row.querySelector('.score');
+      ni.value = cfg.names[i] || ''; si.value = cfg.scores[i];
+      ni.addEventListener('input', () => { cfg.names[i] = ni.value; save(); render(); publishState(); });
+      si.addEventListener('change', () => { cfg.scores[i] = parseInt(si.value, 10) || 0; save(); render(); });
+      box.appendChild(row);
+    });
+    $('#sCorrect').value = cfg.correct; $('#sWrong').value = cfg.wrong;
+    $('#sAnswer').value = cfg.answerSec; $('#sRound').value = cfg.roundSec; $('#sTie').value = cfg.tieMs;
+  }
+  const num = (id, key, min, max) => $(id).addEventListener('change', e => {
+    let v = parseInt(e.target.value, 10); if (isNaN(v)) v = DEF[key];
+    if (min !== undefined) v = Math.max(min, v); if (max !== undefined) v = Math.min(max, v);
+    cfg[key] = v; e.target.value = v; save();
+    if (key === 'roundSec' && !clockRun) clockReset();
+  });
+  num('#sCorrect', 'correct'); num('#sWrong', 'wrong');
+  num('#sAnswer', 'answerSec', 0, 120); num('#sRound', 'roundSec', 0, 3600); num('#sTie', 'tieMs', 100, 1500);
+
+  /* Full screen: browsers only allow it after a click or key press, so the page
+     goes full screen on the first click, and again on any later click or key
+     if someone presses Esc. */
+  function enterFs() {
+    if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  }
+  function fullscreen() { if (document.fullscreenElement) document.exitFullscreen(); else enterFs(); }
+  let keepFs = true;
+  $('#start').addEventListener('click', () => { ac(); $('#start').hidden = true; enterFs(); });
+  document.addEventListener('fullscreenchange', () => document.body.classList.toggle('fs', !!document.fullscreenElement));
+
+  $('#bToggle').addEventListener('click', e => { ac(); toggle(); e.target.blur(); });
+  $('#bJoin').addEventListener('click', () => toggleJoin());
+  $('#bFs').addEventListener('click', fullscreen);
+  $('#bUndo').addEventListener('click', undo);
+  $('#bReset').addEventListener('click', () => {
+    if (!confirm('Set all four scores to 0 and restart question numbers?')) return;
+    cfg.scores = [0, 0, 0, 0]; cfg.q = 0; history.length = 0; save();
+    lock(); S.order = []; S.cur = 0; S.results = {}; render(); renderPanel(); publishState();
+  });
+
+  document.addEventListener('pointerdown', e => {
+    ac();
+    if (keepFs && !(e.target.closest && e.target.closest('.panel'))) enterFs();
+  });
+  document.addEventListener('keydown', e => {
+    ac();
+    if (e.target && e.target.matches && e.target.matches('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
+    if (keepFs && e.key !== 'Escape' && e.key.toLowerCase() !== 'f') { $('#start').hidden = true; enterFs(); }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === ' ') { e.preventDefault(); toggle(); }
+    else if (k === 'c') correct();
+    else if (k === 'w') wrong();
+    else if (k === 'n') next();
+    else if (k === 'u') undo();
+    else if (/^[1-4]$/.test(k)) onBuzz(+k - 1, Date.now());
+    else if (k === 't') clockToggle();
+    else if (k === 'y') clockReset();
+    else if (k === 'j') toggleJoin();
+    else if (k === 'p') togglePanel();
+    else if (k === 'f') { keepFs = !document.fullscreenElement; fullscreen(); }
+    else if (k === 'escape') { toggleJoin(false); togglePanel(false); }
+  });
+
+  render(); renderClock(); renderConn(); renderPresence();
+  setInterval(renderPresence, 1000);
+})();
+</script>
+</body>
+</html>

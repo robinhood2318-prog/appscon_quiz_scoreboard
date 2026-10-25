@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #12162B; --surface: #1C2242; --raise: #242B52; --line: #2B3260;
+  --text: #F2F4FF; --muted: #8D95C2; --alert: #FF6B6B;
+  font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; }
+body { display: grid; grid-template-rows: auto 1fr auto; }
+body.idle { cursor: none; }
+
+/* ---------- header (same as the buzzer screen) ---------- */
+.bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; padding: 2.4vh 3vw 0; }
+.rno { font-size: 1.9vw; color: var(--muted); justify-self: start; }
+.event { text-align: center; }
+.ev1 { display: block; font-weight: 800; font-size: 2.8vw; line-height: 1.15; }
+.ev2 { display: block; color: var(--muted); font-size: 2.1vw; font-weight: 600; margin-top: .4vh; }
+
+/* ---------- centre: current round ---------- */
+.stage { display: grid; place-items: center; text-align: center; padding: 0 5vw; }
+.kicker { font-size: 2vw; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.round { font-size: 8.4vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-top: 1.2vh; overflow-wrap: anywhere; }
+.marks { margin-top: 2.6vh; display: flex; justify-content: center; gap: 1vw; font-size: 1.5vw; color: var(--muted); }
+.marks span { background: var(--surface); border-radius: 999px; padding: .6vh 1.2vw; }
+.marks b { color: var(--text); font-weight: 700; }
+.flash { font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--c); }
+.flash[hidden], .roundbox[hidden] { display: none; }
+
+/* ---------- team tiles ---------- */
+.teams { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: 1.4vw; padding: 0 3vw 3.5vh; }
+.tile { position: relative; background: var(--surface); border-radius: 14px; border-top: 1.2vh solid var(--c);
+  padding: 2vh 1.4vw 1.8vh; min-width: 0; cursor: pointer; transition: box-shadow .12s, transform .12s; }
+.tile .nm { font-size: 2vw; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4.5vw; }
+.tile .sc { font-size: 6.4vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.tile .rd { font-size: 1.25vw; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile .badge { position: absolute; top: 1.8vh; right: 1.2vw; background: var(--c); color: var(--ink); font-weight: 800;
+  border-radius: 999px; padding: .3vh .8vw; font-size: 1.4vw; }
+.tile .badge[hidden] { display: none; }
+.tile.sel { box-shadow: 0 0 0 4px var(--c); transform: translateY(-.6vh); }
+.tile.bump .sc { animation: bump .45s ease-out; }
+@keyframes bump { 30% { transform: scale(1.12); } }
+
+/* ---------- overview: the side panel the audience can see ---------- */
+.ovtab { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 6;
+  writing-mode: vertical-rl; background: var(--surface); color: var(--muted); border: 0; border-radius: 12px 0 0 12px;
+  font: inherit; font-size: 1.1vw; font-weight: 600; letter-spacing: .08em; padding: 1.6vw .7vw; cursor: pointer; }
+.ovtab:hover { color: var(--text); }
+.ovtab { transition: right .28s ease; z-index: 9; }
+.ovtab.open { right: min(78vw, 1400px); color: var(--text); }
+.overview { position: fixed; top: 0; right: 0; bottom: 0; width: min(78vw, 1400px); z-index: 7;
+  background: var(--surface); border-left: 1px solid var(--line); box-shadow: -2vw 0 4vw rgba(0,0,0,.35);
+  padding: 4vh 3vw; display: flex; flex-direction: column; gap: 2.4vh;
+  transform: translateX(102%); transition: transform .28s ease; }
+.overview.open { transform: none; }
+.overview h2 { margin: 0; font-size: 3vw; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; }
+.overview h2 small { font-size: 1.4vw; font-weight: 600; color: var(--muted); }
+.ovwrap { overflow: auto; flex: 1; }
+table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.ov th, .ov td { padding: 1.6vh 1vw; text-align: center; font-size: 1.6vw; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ov thead th { color: var(--muted); font-weight: 600; font-size: 1.2vw; vertical-align: bottom; white-space: normal; max-width: 10vw; line-height: 1.2; }
+.ov thead th small { display: block; font-size: .9vw; font-weight: 700; letter-spacing: .06em; opacity: .7; margin-bottom: .4vh; }
+.ov td.later { color: #4A5078; }
+.ov thead th.cur { color: var(--text); }
+.ov td.cur { background: rgba(255,255,255,.05); }
+.ov th.team, .ov td.team { text-align: left; }
+.ov td.team { font-weight: 700; }
+.ov td.team i { display: inline-block; width: 1vw; height: 1vw; border-radius: 50%; background: var(--c); margin-right: .8vw; vertical-align: middle; }
+.ov td.tot { font-weight: 800; font-size: 2.2vw; }
+.ov td.rk { color: var(--muted); font-weight: 700; }
+.ov tr.lead td.rk { color: #FFB703; }
+.ov td.zero { color: #4A5078; }
+
+/* ---------- quizmaster panel (left) ---------- */
+.panel { position: fixed; top: 0; left: 0; bottom: 0; width: 480px; max-width: 94vw; z-index: 10; overflow-y: auto;
+  background: var(--surface); border-right: 1px solid var(--line); padding: 22px 22px 48px; font-size: 15px; cursor: auto; }
+.panel[hidden] { display: none; }
+.panel h2 { margin: 0 0 6px; font-size: 22px; }
+.panel h3 { margin: 26px 0 10px; font-size: 16px; color: var(--muted); font-weight: 600; }
+.panel p.note { margin: 0 0 10px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.panel .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.panel button { font: inherit; font-weight: 600; background: var(--line); color: var(--text); border: 0; border-radius: 8px; padding: 8px 13px; cursor: pointer; }
+.panel button.primary { background: var(--text); color: var(--bg); }
+.panel button.ghost { background: transparent; color: var(--muted); padding: 6px 8px; }
+.panel button:hover { filter: brightness(1.15); }
+.panel button:disabled { opacity: .35; cursor: default; filter: none; }
+.panel input { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+.panel input[type="number"] { text-align: right; }
+.panel label.full { display: block; margin: 8px 0; }
+.panel label.full span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.panel label.full input { width: 100%; }
+.rcard { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 8px 0; }
+.rcard.cur { border-color: var(--text); }
+.rtop { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.rtop .num { font-weight: 800; color: var(--muted); width: 22px; text-align: center; }
+.rtop input { width: 100%; background: var(--surface); }
+.rpts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+.rpts label { font-size: 12px; color: var(--muted); }
+.rpts input { width: 100%; margin-top: 3px; background: var(--surface); }
+.ract { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.trow { display: grid; grid-template-columns: 14px 1fr 86px auto; gap: 8px; align-items: center; margin: 8px 0; }
+.trow .sw { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+.keys dt { font-weight: 800; }
+.keys dd { margin: 0; color: var(--muted); }
+:focus-visible { outline: 3px solid #FFB703; outline-offset: 2px; }
+
+.start { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; place-items: center; text-align: center; cursor: pointer; }
+.start[hidden] { display: none; }
+.start b { display: block; font-size: 4vw; font-weight: 800; }
+.start span { display: block; margin-top: 1.5vh; font-size: 1.6vw; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .overview, .tile { transition: none; }
+  .tile.bump .sc { animation: none; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="rno" id="rno">Round 1 of 5</div>
+  <div class="event"><span class="ev1" id="title"></span><span class="ev2" id="subtitle"></span></div>
+  <div></div>
+</header>
+
+<main class="stage">
+  <div class="roundbox" id="roundbox">
+    <div class="kicker" id="kicker">Now playing</div>
+    <div class="round" id="roundName"></div>
+    <div class="marks" id="marks"></div>
+  </div>
+  <div class="flash" id="flash" hidden></div>
+</main>
+
+<section class="teams" id="teams" aria-label="Total scores"></section>
+
+<button class="ovtab" id="ovtab" aria-controls="overview" aria-expanded="false">OVERVIEW</button>
+<aside class="overview" id="overview" aria-label="Score overview">
+  <h2>Score overview <small id="ovsub"></small></h2>
+  <div class="ovwrap"><table class="ov" id="ovtable"></table></div>
+</aside>
+
+<aside class="panel" id="panel" hidden>
+  <h2>Quizmaster controls</h2>
+  <p class="note">Everything here is saved on this laptop and survives a refresh.</p>
+
+  <h3>Screen title</h3>
+  <label class="full"><span>Title</span><input id="iTitle"></label>
+  <label class="full"><span>Second line</span><input id="iSub"></label>
+
+  <h3>Rounds and marks</h3>
+  <p class="note">The highlighted round is on screen. Marks are set per round: Correct (C), Wrong (W), Pass (S) for a passed question answered correctly, and Bonus (B). Use a minus sign for negative marking; 0 switches a mark off.</p>
+  <div id="roundList"></div>
+  <div class="btns"><button id="bAddRound">Add round</button></div>
+
+  <h3>Teams</h3>
+  <div id="teamList"></div>
+  <div class="btns"><button id="bAddTeam">Add team</button></div>
+
+  <h3 id="hRoundScores">Scores in this round</h3>
+  <p class="note">Type a number to correct a score directly.</p>
+  <div id="roundScores"></div>
+
+  <div class="btns">
+    <button id="bUndo">Undo last mark</button>
+    <button id="bCsv">Download scores (CSV)</button>
+    <button id="bReset">Reset all scores</button>
+  </div>
+
+  <h3>Keys</h3>
+  <dl class="keys">
+    <dt>1–6</dt><dd>Select a team (or click its tile)</dd>
+    <dt>C</dt><dd>Correct: adds this round’s correct mark to the selected team</dd>
+    <dt>W</dt><dd>Wrong: adds this round’s wrong mark (negative marking)</dd>
+    <dt>S</dt><dd>Pass: adds this round’s pass mark (a passed question answered correctly)</dd>
+    <dt>B</dt><dd>Bonus: adds this round’s bonus mark</dd>
+    <dt>U</dt><dd>Undo the last mark</dd>
+    <dt>← →</dt><dd>Previous / next round (PageUp / PageDown on a clicker)</dd>
+    <dt>O</dt><dd>Show or hide the score overview</dd>
+    <dt>P</dt><dd>Show or hide this panel</dd>
+    <dt>F</dt><dd>Leave or enter full screen</dd>
+  </dl>
+</aside>
+
+<div class="start" id="start"><div><b>Click anywhere to start</b><span>The scoreboard opens in full screen</span></div></div>
+
+<script src="config.js?v=4"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const KEY = 'appscon-quiz-scoreboard-v1';
+  const COLORS = ['#E63946', '#3A86FF', '#FFB703', '#2DC653', '#B15CFF', '#FF7A1A'];
+  const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' })[n] || n + 'th';
+  const fmtPts = p => (p > 0 ? '+' : p < 0 ? '\u2212' : '') + Math.abs(p);
+  const uid = () => 'r' + Math.random().toString(36).slice(2, 9);
+
+  function defaults() {
+    const rounds = ['Round 1', 'Round 2', 'Round 3', 'Round 4', 'Buzzer round'].map((name, i) => ({
+      id: uid(), name, correct: 10, wrong: i === 4 ? -5 : 0, pass: i === 4 ? 0 : 5, bonus: 0 }));
+    return {
+      title: 'APPSCON 2026 – Quiz competition', subtitle: 'Live scoreboard',
+      rounds, cur: 0,
+      teams: [0, 1, 2, 3].map(i => ({ name: 'Team ' + (i + 1), color: COLORS[i] })),
+      scores: {}, history: []
+    };
+  }
+  let D;
+  try { D = JSON.parse(localStorage.getItem(KEY) || 'null') || defaults(); } catch (e) { D = defaults(); }
+  D.rounds.forEach(r => { if (typeof r.pass !== 'number') r.pass = 0; if (typeof r.bonus !== 'number') r.bonus = 0; });
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
+
+  let sel = -1;              // selected team
+  let flashTimer = null;
+
+  const round = () => D.rounds[D.cur];
+  const sc = (rid, t) => ((D.scores[rid] || [])[t] || 0);
+  const setSc = (rid, t, v) => { if (!D.scores[rid]) D.scores[rid] = []; D.scores[rid][t] = v; };
+  const total = t => D.rounds.reduce((s, r) => s + sc(r.id, t), 0);
+  function ranks() {
+    const tot = D.teams.map((_, t) => total(t));
+    return tot.map(v => 1 + tot.filter(o => o > v).length);   // ties share a rank
+  }
+  const anyScore = () => D.teams.some((_, t) => total(t) !== 0);
+
+  /* ---------- sound ---------- */
+  let AC = null;
+  function ac() {
+    if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    if (AC && AC.state === 'suspended') AC.resume();
+    return AC;
+  }
+  function tone(f, d, type, v, w) {
+    const a = ac(); if (!a) return;
+    const t = a.currentTime + (w || 0), o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.03);
+  }
+  const sUp = () => { tone(660, .1, 'triangle', .22); tone(880, .1, 'triangle', .22, .1); tone(1100, .22, 'triangle', .22, .2); };
+  const sDown = () => tone(170, .35, 'square', .16);
+
+  /* ---------- marking ---------- */
+  function mark(kind) {
+    if (sel < 0 || sel >= D.teams.length) { flashMsg('Select a team first (keys 1–' + D.teams.length + ')', null); return; }
+    const r = round(), pts = r[kind];
+    if (!pts) { flashMsg(kind[0].toUpperCase() + kind.slice(1) + ' is 0 in this round', null); return; }
+    setSc(r.id, sel, sc(r.id, sel) + pts);
+    D.history.push({ r: r.id, t: sel, pts });
+    if (D.history.length > 500) D.history.shift();
+    save();
+    pts > 0 ? sUp() : sDown();
+    flashMsg(D.teams[sel].name + '  ' + fmtPts(pts) + (kind === 'pass' ? ' (pass)' : kind === 'bonus' ? ' (bonus)' : ''), sel);
+    bump(sel);
+    render();
+  }
+  function undo() {
+    const h = D.history.pop(); if (!h) return;
+    if (D.scores[h.r]) setSc(h.r, h.t, sc(h.r, h.t) - h.pts);
+    save(); flashMsg('Undone', null); render();
+  }
+  function flashMsg(text, team) {
+    const f = $('#flash');
+    f.textContent = text;
+    f.style.setProperty('--c', team === null ? 'var(--muted)' : D.teams[team].color);
+    f.style.fontSize = team === null ? '4vw' : '';
+    f.hidden = false; $('#roundbox').hidden = true;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { f.hidden = true; $('#roundbox').hidden = false; }, 2200);
+  }
+  function bump(t) {
+    const el = tiles[t]; if (!el) return;
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  }
+
+  /* ---------- screen ---------- */
+  let tiles = [];
+  function buildTiles() {
+    const box = $('#teams'); box.textContent = '';
+    box.style.setProperty('--n', D.teams.length);
+    tiles = D.teams.map((t, i) => {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.innerHTML = '<div class="nm"></div><div class="sc"></div><div class="rd"></div><div class="badge" hidden></div>';
+      el.addEventListener('click', () => { sel = sel === i ? -1 : i; render(); });
+      box.appendChild(el);
+      return el;
+    });
+  }
+
+  function render() {
+    if (tiles.length !== D.teams.length) buildTiles();
+    if (D.cur >= D.rounds.length) D.cur = D.rounds.length - 1;
+    const r = round();
+    $('#title').textContent = D.title; $('#subtitle').textContent = D.subtitle;
+    $('#subtitle').hidden = !D.subtitle.trim();
+    $('#rno').textContent = 'Round ' + (D.cur + 1) + ' of ' + D.rounds.length;
+    $('#kicker').textContent = 'Round ' + (D.cur + 1);
+    $('#roundName').textContent = r.name;
+    const mk = $('#marks'); mk.textContent = '';
+    [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.pass], ['Bonus', r.bonus]].forEach(([lab, v]) => {
+      if (!v) return;
+      const sp = document.createElement('span'), b = document.createElement('b');
+      sp.textContent = lab + ' '; b.textContent = fmtPts(v); sp.appendChild(b); mk.appendChild(sp);
+    });
+
+    const rk = ranks(), show = anyScore();
+    tiles.forEach((el, i) => {
+      const t = D.teams[i];
+      el.style.setProperty('--c', t.color); el.style.setProperty('--ink', inkFor(t.color));
+      el.querySelector('.nm').textContent = t.name;
+      el.querySelector('.sc').textContent = total(i);
+      const rs = sc(r.id, i);
+      el.querySelector('.rd').textContent = 'This round: ' + (rs ? fmtPts(rs) : '0');
+      const b = el.querySelector('.badge');
+      b.hidden = !show; b.textContent = ordinal(rk[i]);
+      el.classList.toggle('sel', i === sel);
+    });
+    renderOverview();
+    if (!$('#panel').hidden) renderScores();
+  }
+
+  function renderOverview() {
+    const rk = ranks(), lead = Math.min(...rk), show = anyScore();
+    $('#ovsub').textContent = 'After round ' + (D.cur + 1) + ' of ' + D.rounds.length;
+    const tb = $('#ovtable'); tb.textContent = '';
+    const thead = tb.createTHead().insertRow();
+    const th = (txt, cls, small) => {
+      const c = document.createElement('th'); if (cls) c.className = cls;
+      if (small) { const s = document.createElement('small'); s.textContent = small; c.appendChild(s); }
+      c.appendChild(document.createTextNode(txt)); thead.appendChild(c);
+    };
+    th('Rank'); th('Team', 'team');
+    D.rounds.forEach((r, k) => th(r.name, k === D.cur ? 'cur' : '', 'ROUND ' + (k + 1)));
+    th('Total');
+    const body = tb.createTBody();
+    // Rows sorted by total, highest first; team order breaks ties.
+    D.teams.map((t, i) => i).sort((a, b) => total(b) - total(a) || a - b).forEach(i => {
+      const t = D.teams[i], tr = body.insertRow();
+      if (show && rk[i] === lead) tr.className = 'lead';
+      const td = (txt, cls) => { const c = tr.insertCell(); c.textContent = txt; if (cls) c.className = cls; return c; };
+      td(show ? ordinal(rk[i]) : '–', 'rk');
+      const n = td('', 'team'); n.style.setProperty('--c', t.color);
+      const dot = document.createElement('i'); n.appendChild(dot); n.appendChild(document.createTextNode(t.name));
+      D.rounds.forEach((r, k) => {
+        const v = sc(r.id, i);
+        const later = k > D.cur && !v;
+        td(later ? '–' : (v > 0 ? '+' + v : v < 0 ? '\u2212' + Math.abs(v) : '0'),
+           (k === D.cur ? 'cur ' : '') + (later ? 'later' : v ? '' : 'zero'));
+      });
+      td(total(i), 'tot');
+    });
+  }
+
+  function toggleOverview(force) {
+    const o = $('#overview');
+    const open = typeof force === 'boolean' ? force : !o.classList.contains('open');
+    o.classList.toggle('open', open);
+    $('#ovtab').setAttribute('aria-expanded', open);
+    $('#ovtab').textContent = open ? 'CLOSE' : 'OVERVIEW';
+    $('#ovtab').classList.toggle('open', open);
+  }
+
+  function goRound(d) {
+    const n = Math.max(0, Math.min(D.rounds.length - 1, D.cur + d));
+    if (n === D.cur) return;
+    D.cur = n; sel = -1; save(); render(); if (!$('#panel').hidden) renderPanel();
+  }
+
+  /* ---------- quizmaster panel ---------- */
+  function togglePanel(force) {
+    const p = $('#panel');
+    const show = typeof force === 'boolean' ? force : p.hidden;
+    p.hidden = !show;
+    if (show) renderPanel();
+  }
+
+  function renderPanel() {
+    $('#iTitle').value = D.title; $('#iSub').value = D.subtitle;
+
+    const rl = $('#roundList'); rl.textContent = '';
+    D.rounds.forEach((r, k) => {
+      const c = document.createElement('div');
+      c.className = 'rcard' + (k === D.cur ? ' cur' : '');
+      c.innerHTML =
+        '<div class="rtop"><span class="num"></span><input class="rname" aria-label="Round name"><button class="show"></button></div>' +
+        '<div class="rpts"><label>Correct (C)<input type="number" class="pc"></label><label>Wrong (W)<input type="number" class="pw"></label><label>Pass (S)<input type="number" class="ps"></label><label>Bonus (B)<input type="number" class="pb"></label></div>' +
+        '<div class="ract"><span><button class="ghost up" title="Move up">Move up</button><button class="ghost dn" title="Move down">Move down</button></span><button class="ghost del">Delete</button></div>';
+      c.querySelector('.num').textContent = k + 1;
+      const nm = c.querySelector('.rname'); nm.value = r.name;
+      nm.addEventListener('input', () => { r.name = nm.value; save(); render(); });
+      const show = c.querySelector('.show');
+      show.textContent = k === D.cur ? 'On screen' : 'Show';
+      show.className = k === D.cur ? 'primary show' : 'show';
+      show.addEventListener('click', () => { D.cur = k; sel = -1; save(); render(); renderPanel(); });
+      [['.pc', 'correct'], ['.pw', 'wrong'], ['.ps', 'pass'], ['.pb', 'bonus']].forEach(([cls, key]) => {
+        const inp = c.querySelector(cls); inp.value = r[key];
+        inp.addEventListener('change', () => { r[key] = parseInt(inp.value, 10) || 0; inp.value = r[key]; save(); render(); });
+      });
+      const up = c.querySelector('.up'), dn = c.querySelector('.dn'), del = c.querySelector('.del');
+      up.disabled = k === 0; dn.disabled = k === D.rounds.length - 1; del.disabled = D.rounds.length <= 1;
+      up.addEventListener('click', () => moveRound(k, -1));
+      dn.addEventListener('click', () => moveRound(k, 1));
+      del.addEventListener('click', () => {
+        const has = D.teams.some((_, t) => sc(r.id, t));
+        if (!confirm('Delete “' + r.name + '”' + (has ? ' and the marks scored in it' : '') + '?')) return;
+        D.rounds.splice(k, 1); delete D.scores[r.id]; D.history = D.history.filter(h => h.r !== r.id);
+        if (D.cur > k || D.cur >= D.rounds.length) D.cur = Math.max(0, D.cur - 1);
+        save(); render(); renderPanel();
+      });
+      rl.appendChild(c);
+    });
+
+    const tl = $('#teamList'); tl.textContent = '';
+    D.teams.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'trow'; row.style.setProperty('--c', t.color);
+      row.innerHTML = '<span class="sw"></span><input aria-label="Team name"><span></span><button class="ghost del">Remove</button>';
+      const inp = row.querySelector('input'); inp.value = t.name;
+      inp.addEventListener('input', () => { t.name = inp.value; save(); render(); });
+      const del = row.querySelector('.del'); del.disabled = D.teams.length <= 2;
+      del.addEventListener('click', () => {
+        if (!confirm('Remove ' + t.name + ' and its marks?')) return;
+        D.teams.splice(i, 1);
+        Object.values(D.scores).forEach(a => a.splice(i, 1));
+        D.history = D.history.filter(h => h.t !== i).map(h => (h.t > i ? Object.assign(h, { t: h.t - 1 }) : h));
+        sel = -1; save(); buildTiles(); render(); renderPanel();
+      });
+      tl.appendChild(row);
+    });
+    $('#bAddTeam').disabled = D.teams.length >= 6;
+    renderScores();
+  }
+
+  function renderScores() {
+    const r = round();
+    $('#hRoundScores').textContent = 'Scores in round ' + (D.cur + 1) + ' (' + r.name + ')';
+    const box = $('#roundScores');
+    if (box.contains(document.activeElement)) return;   // don't disturb typing
+    box.textContent = '';
+    D.teams.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'trow'; row.style.setProperty('--c', t.color);
+      row.innerHTML = '<span class="sw"></span><span class="tn"></span><input type="number" aria-label="Score"><span></span>';
+      row.querySelector('.tn').textContent = t.name;
+      const inp = row.querySelector('input'); inp.value = sc(r.id, i);
+      inp.addEventListener('change', () => {
+        const v = parseInt(inp.value, 10) || 0, old = sc(r.id, i);
+        setSc(r.id, i, v); D.history.push({ r: r.id, t: i, pts: v - old }); save(); inp.value = v; render();
+      });
+      box.appendChild(row);
+    });
+  }
+
+  function moveRound(k, d) {
+    const j = k + d; if (j < 0 || j >= D.rounds.length) return;
+    const [r] = D.rounds.splice(k, 1); D.rounds.splice(j, 0, r);
+    if (D.cur === k) D.cur = j; else if (D.cur === j) D.cur = k;
+    save(); render(); renderPanel();
+  }
+
+  $('#iTitle').addEventListener('input', e => { D.title = e.target.value; save(); render(); });
+  $('#iSub').addEventListener('input', e => { D.subtitle = e.target.value; save(); render(); });
+  $('#bAddRound').addEventListener('click', () => {
+    const last = D.rounds[D.rounds.length - 1] || { correct: 10, wrong: 0, pass: 5, bonus: 0 };
+    D.rounds.push({ id: uid(), name: 'Round ' + (D.rounds.length + 1), correct: last.correct, wrong: last.wrong, pass: last.pass, bonus: last.bonus });
+    save(); render(); renderPanel();
+    const inputs = document.querySelectorAll('#roundList .rname'); inputs[inputs.length - 1].select();
+  });
+  $('#bAddTeam').addEventListener('click', () => {
+    if (D.teams.length >= 6) return;
+    const used = D.teams.map(t => t.color);
+    D.teams.push({ name: 'Team ' + (D.teams.length + 1), color: COLORS.find(c => !used.includes(c)) || COLORS[D.teams.length % 6] });
+    save(); buildTiles(); render(); renderPanel();
+  });
+  $('#bUndo').addEventListener('click', undo);
+  $('#bReset').addEventListener('click', () => {
+    if (!confirm('Set every team’s marks in every round back to 0? Round names, marks and team names are kept.')) return;
+    D.scores = {}; D.history = []; D.cur = 0; sel = -1; save(); render(); renderPanel();
+  });
+  $('#bCsv').addEventListener('click', () => {
+    const q = s => '"' + String(s).replace(/"/g, '""') + '"';
+    const rows = [['Team', ...D.rounds.map((r, k) => (k + 1) + '. ' + r.name), 'Total'].map(q).join(',')];
+    D.teams.forEach((t, i) => rows.push([q(t.name), ...D.rounds.map(r => sc(r.id, i)), total(i)].join(',')));
+    const blob = new Blob(['\ufeff' + rows.join('\r\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'APPSCON 2026 quiz scores.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  $('#ovtab').addEventListener('click', () => toggleOverview());
+
+  /* ---------- full screen (same behaviour as the buzzer screen) ---------- */
+  let keepFs = true;
+  function enterFs() {
+    if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  }
+  $('#start').addEventListener('click', () => { ac(); $('#start').hidden = true; enterFs(); });
+
+  document.addEventListener('pointerdown', e => {
+    ac();
+    if (keepFs && !(e.target.closest && e.target.closest('.panel'))) enterFs();
+  });
+  document.addEventListener('keydown', e => {
+    ac();
+    if (e.target && e.target.matches && e.target.matches('input, textarea, select')) {
+      if (e.key === 'Escape' || e.key === 'Enter') e.target.blur();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (keepFs && k !== 'escape' && k !== 'f') { $('#start').hidden = true; enterFs(); }
+    if (/^[1-6]$/.test(k) && +k <= D.teams.length) { sel = sel === +k - 1 ? -1 : +k - 1; render(); }
+    else if (k === 'c') mark('correct');
+    else if (k === 'w') mark('wrong');
+    else if (k === 's') mark('pass');
+    else if (k === 'b') mark('bonus');
+    else if (k === 'u') undo();
+    else if (k === 'arrowright' || k === 'pagedown') { e.preventDefault(); goRound(1); }
+    else if (k === 'arrowleft' || k === 'pageup') { e.preventDefault(); goRound(-1); }
+    else if (k === 'o') toggleOverview();
+    else if (k === 'p') togglePanel();
+    else if (k === 'f') {
+      if (document.fullscreenElement) { keepFs = false; document.exitFullscreen(); } else { keepFs = true; enterFs(); }
+    }
+    else if (k === 'escape') { if (!$('#panel').hidden) togglePanel(false); else toggleOverview(false); }
+  });
+
+  /* Hide the mouse pointer after 3 s without movement. */
+  let idleT = null;
+  document.addEventListener('mousemove', () => {
+    document.body.classList.remove('idle');
+    clearTimeout(idleT); idleT = setTimeout(() => document.body.classList.add('idle'), 3000);
+  });
+
+  buildTiles(); render();
+})();
+</script>
+</body>
+</html>

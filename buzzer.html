@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#12162B">
+<title>Quiz buzzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #12162B; --surface: #232A50; --text: #F2F4FF; --muted: #8D95C2;
+  --c: #8D95C2; --c-soft: rgba(141,149,194,.3); --ink: #12162B;
+  font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  touch-action: manipulation; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+body { display: flex; flex-direction: column; min-height: 100%;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  background: radial-gradient(130% 60% at 50% 105%, var(--c-soft), transparent 70%), var(--bg); }
+
+header { display: flex; align-items: center; gap: 12px; }
+.chip { width: 16px; height: 16px; border-radius: 50%; background: var(--c); flex: none; }
+#teamName { font-size: 26px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
+
+main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; }
+#buzz { width: min(80vw, 52vh); aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0;
+  font: inherit; font-size: clamp(40px, 13vw, 76px); font-weight: 800; letter-spacing: -0.02em;
+  color: var(--muted); background: var(--surface); box-shadow: inset 0 -10px 0 rgba(0,0,0,.25);
+  transition: transform .06s; cursor: pointer; }
+#buzz[data-mode="live"] { background: var(--c); color: var(--ink); box-shadow: 0 0 0 12px var(--c-soft), inset 0 -12px 0 rgba(0,0,0,.25); }
+#buzz[data-mode="live"]:active { transform: scale(.96); }
+#buzz[data-mode="sent"] { background: var(--c); color: var(--ink); opacity: .6; }
+#buzz[data-mode="turn"] { background: var(--c); color: var(--ink); animation: ring 1s ease-out infinite; }
+#buzz[data-mode="done"] { background: transparent; color: var(--c); box-shadow: inset 0 0 0 8px var(--c); }
+@keyframes ring { from { box-shadow: 0 0 0 0 var(--c-soft); } to { box-shadow: 0 0 0 30px rgba(0,0,0,0); } }
+#state { font-size: 24px; font-weight: 700; margin: 0; }
+#sub { font-size: 16px; color: var(--muted); margin: 0; min-height: 1.3em; }
+
+footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+#net.off { color: #FF7A7A; font-weight: 600; }
+#test { font: inherit; font-size: 14px; font-weight: 600; color: var(--text); background: var(--surface); border: 0; border-radius: 999px; padding: 6px 14px; }
+
+#picker { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+#picker[hidden], #play[hidden] { display: none; }
+#picker h1 { margin: 0 0 6px; font-size: 28px; }
+.picks { display: grid; gap: 12px; }
+.pick { display: flex; align-items: center; gap: 14px; padding: 20px; border-radius: 16px; text-decoration: none;
+  background: var(--pc); color: var(--pink); font-size: 24px; font-weight: 800; }
+.pick b { font-size: 34px; width: 40px; }
+:focus-visible { outline: 3px solid #FFB703; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { #buzz { animation: none !important; transition: none; } }
+</style>
+</head>
+<body>
+<section id="picker" hidden>
+  <h1>Choose your team</h1>
+  <div class="picks" id="picks"></div>
+</section>
+
+<div id="play" style="display:contents">
+  <header><span class="chip"></span><span id="teamName">Team</span></header>
+  <main>
+    <button id="buzz" data-mode="wait" aria-disabled="true">Wait</button>
+    <p id="state">Connecting…</p>
+    <p id="sub"></p>
+  </main>
+  <footer><span id="net">Connecting</span><button id="test" type="button">Test sound</button></footer>
+</div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="config.js?v=4"></script>
+<script src="relay.js?v=1"></script>
+<script>
+(() => {
+  'use strict';
+  const C = window.QUIZ;
+  const $ = s => document.querySelector(s);
+  const team = parseInt(new URLSearchParams(location.search).get('team'), 10);
+  const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' })[n] || n + 'th';
+  let names = C.teams.map(t => t.name);
+
+  /* ---------- no team in the link: show a picker ---------- */
+  if (!(team >= 1 && team <= 4)) {
+    $('#play').hidden = true; $('#play').style.display = 'none';
+    $('#picker').hidden = false;
+    const links = C.teams.map((t, i) => {
+      const a = document.createElement('a');
+      a.className = 'pick'; a.href = '?team=' + (i + 1);
+      a.style.setProperty('--pc', t.color); a.style.setProperty('--pink', inkFor(t.color));
+      a.innerHTML = '<b>' + (i + 1) + '</b><span></span>';
+      a.querySelector('span').textContent = t.name;
+      $('#picks').appendChild(a);
+      return a;
+    });
+    Relay.connect({
+      prefix: 'pick', subscribe: ['state'],
+      onMessage(topic, m) {
+        if (topic === 'state' && m.teams) m.teams.forEach((t, i) => { if (links[i]) links[i].querySelector('span').textContent = t.name; });
+      }
+    });
+    return;
+  }
+
+  /* ---------- buzzer ---------- */
+  const me = team - 1;
+  const col = C.teams[me].color;
+  const root = document.documentElement.style;
+  root.setProperty('--c', col); root.setProperty('--c-soft', col + '55'); root.setProperty('--ink', inkFor(col));
+  document.querySelector('meta[name="theme-color"]').content = '#12162B';
+
+  let S = null, hostOnline = null, conn = 'connecting';
+  let offset = 0, bestRtt = null, samples = [], n = 0;
+  let myBuzz = null;
+
+  const R = Relay.connect({
+    prefix: 't' + team,
+    subscribe: cid => ['state', 'status', 'pong/' + cid],
+    onStatus(s) { conn = s; render(); },
+    onConnect() { burst(); },
+    onMessage(topic, m) {
+      if (topic === 'state') {
+        S = m;
+        if (m.teams && m.teams[me]) names[me] = m.teams[me].name;
+        if (myBuzz && myBuzz.q !== m.q) myBuzz = null;
+        render();
+      } else if (topic === 'status') {
+        hostOnline = !!m.online; render();
+      } else if (topic.indexOf('pong/') === 0) {
+        // Clock sync: estimate the screen's clock from the fastest round trip seen.
+        const t1 = Date.now(), rtt = t1 - m.t0;
+        if (rtt < 0 || rtt > 5000) return;
+        samples.push({ rtt, off: m.th - (m.t0 + t1) / 2 });
+        if (samples.length > 15) samples.shift();
+        const b = samples.reduce((a, s) => (s.rtt < a.rtt ? s : a));
+        offset = b.off; bestRtt = b.rtt;
+        render();
+      }
+    }
+  });
+
+  function sendPing() { R.send('ping', { cid: R.cid, team, n: ++n, t0: Date.now(), rtt: bestRtt }); }
+  function burst() { for (let i = 0; i < 6; i++) setTimeout(sendPing, i * 150); }
+  setInterval(sendPing, 3000);
+
+  const pos = () => (S && S.order ? S.order.findIndex(o => o.team === team) : -1);
+  const canBuzz = () => S && S.phase === 'open' && hostOnline !== false && conn === 'online'
+                        && !(myBuzz && myBuzz.q === S.q) && pos() < 0;
+
+  function press(e) {
+    if (e) e.preventDefault();
+    wake();
+    if (!canBuzz()) return;
+    const payload = { cid: R.cid, team, q: S.q, t: Math.round(Date.now() + offset), rtt: bestRtt };
+    myBuzz = { q: S.q, payload, tries: 1 };
+    R.send('buzz', payload);
+    playTeamSound(audio(), me, 0.35);
+    if (navigator.vibrate) navigator.vibrate(60);
+    render(); retry();
+  }
+  function retry() {
+    setTimeout(() => {
+      if (!myBuzz || !S || S.q !== myBuzz.q || S.phase !== 'open' || pos() >= 0 || myBuzz.tries >= 4) return;
+      myBuzz.tries++; R.send('buzz', myBuzz.payload); retry();
+    }, 1200);
+  }
+
+  /* ---------- sound ---------- */
+  let AC = null;
+  function audio() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {} // iPhone: play even on silent
+    if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    if (AC && AC.state === 'suspended') AC.resume();
+    preloadBuzzSound(AC);
+    return AC;
+  }
+  document.addEventListener('pointerdown', audio);
+  $('#test').addEventListener('click', () => playTeamSound(audio(), me, 0.35));
+
+  const btn = $('#buzz');
+  btn.addEventListener('pointerdown', press);
+  btn.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') press(e); });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+
+  function render() {
+    $('#teamName').textContent = names[me];
+    document.title = names[me] + ' – buzzer';
+    let mode = 'wait', label = 'Wait', t = '', s = '';
+    const res = S && S.results ? S.results[team] : undefined;
+
+    if (conn !== 'online') { t = 'Connecting…'; s = 'Check Wi-Fi or mobile data'; }
+    else if (hostOnline === false) { t = 'Waiting for the quiz screen'; s = 'The quizmaster’s laptop is offline'; }
+    else if (!S) { t = 'Connected'; s = 'Waiting for the quiz screen'; }
+    else {
+      const p = pos();
+      if (p >= 0) {
+        mode = 'done'; label = ordinal(p + 1);
+        if (S.phase === 'open' && p === S.cur) { mode = 'turn'; t = 'Your turn to answer'; }
+        else if (S.phase === 'open' && p > S.cur) t = 'You are ' + ordinal(p + 1) + ' in line';
+        else t = 'You buzzed ' + ordinal(p + 1);
+        s = p === 0 ? 'First to buzz' : '+' + (S.order[p].gap / 1000).toFixed(2) + ' s after the first';
+        if (typeof res === 'number' && res !== 0) s = (res > 0 ? 'Correct, +' : 'Wrong answer, \u2212') + Math.abs(res) + ' points';
+      } else if (myBuzz && myBuzz.q === S.q) {
+        mode = 'sent'; label = 'Sent'; t = 'Buzz sent'; s = 'Waiting for the screen';
+      } else if (S.phase === 'open') {
+        mode = 'live'; label = 'Buzz'; t = 'Tap to buzz';
+      } else {
+        t = 'Get ready'; s = 'The buzzer lights up when the question is read';
+      }
+    }
+    btn.dataset.mode = mode; btn.textContent = label;
+    btn.setAttribute('aria-disabled', mode === 'live' ? 'false' : 'true');
+    $('#state').textContent = t; $('#sub').textContent = s;
+    const net = $('#net');
+    net.textContent = conn === 'online' ? (bestRtt != null ? 'Connected, ' + bestRtt + ' ms' : 'Connected') : 'Offline, retrying';
+    net.className = conn === 'online' ? '' : 'off';
+  }
+
+  /* Keep the phone awake during the round. */
+  let wl = null;
+  async function wake() {
+    try { if ('wakeLock' in navigator && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } }
+    catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { wl = null; wake(); sendPing(); }
+  });
+  document.addEventListener('pointerdown', wake, { once: true });
+
+  render();
+})();
+</script>
+</body>
+</html>
