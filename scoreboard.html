@@ -199,7 +199,9 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
 <div class="start" id="start"><div><b>Click anywhere to start</b><span>The scoreboard opens in full screen</span></div></div>
 
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="config.js?v=4"></script>
+<script src="relay.js?v=1"></script>
 <script>
 (() => {
   'use strict';
@@ -227,7 +229,26 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     if (typeof r.bonus !== 'number') r.bonus = 0;
     if (typeof r.buzzer !== 'boolean') r.buzzer = /buzzer/i.test(r.name) && !D.rounds.some(o => o.buzzer === true);
   });
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
+  const save = () => {
+    D.ts = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {}
+    setTimeout(publishBoard, 0);
+  };
+
+  /* ---------- live copy for the MC's view-only page (scores.html) ----------
+     Sent over the same relay as the buzzers. The scoreboard keeps working
+     without internet; the MC's page just stops updating. */
+  let BR = null;
+  function publishBoard() {
+    if (!BR) return;
+    BR.send('board', {
+      title: D.title, subtitle: D.subtitle, cur: D.cur,
+      rounds: D.rounds.map(r => ({ name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, buzzer: !!r.buzzer })),
+      teams: D.teams.map(t => ({ name: t.name, color: t.color })),
+      scores: D.rounds.map(r => D.teams.map((_, t) => ((D.scores[r.id] || [])[t] || 0))),
+      ts: D.ts || Date.now()
+    }, true);
+  }
 
   let sel = -1;              // selected team
   let flashTimer = null;
@@ -599,6 +620,8 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   });
 
   syncBuzzer(); pushNamesToBuzzer();
+  try { if (window.mqtt && window.Relay) BR = Relay.connect({ prefix: 'board', subscribe: [], onConnect: publishBoard }); } catch (e) {}
+  setInterval(publishBoard, 15000);
   window.addEventListener('storage', e => { if (e.key === BUZZ_KEY && syncBuzzer()) render(); });
   window.addEventListener('focus', () => { if (syncBuzzer()) render(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && syncBuzzer()) render(); });

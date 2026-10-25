@@ -224,6 +224,7 @@ body.fs:not(.panel-open) { cursor: none; }
       order: S.order.map(o => ({ team: o.team + 1, gap: o.t - t0 })),
       results: S.results,
       teams: C.teams.map((t, i) => ({ name: name(i), color: t.color })),
+      scores: cfg.scores.slice(0, 4),
       ts: Date.now()
     }, true);
   }
@@ -498,7 +499,7 @@ body.fs:not(.panel-open) { cursor: none; }
       const ni = row.querySelector('.nmi'), si = row.querySelector('.score');
       ni.value = cfg.names[i] || ''; si.value = cfg.scores[i];
       ni.addEventListener('input', () => { cfg.names[i] = ni.value; save(); render(); publishState(); });
-      si.addEventListener('change', () => { cfg.scores[i] = parseInt(si.value, 10) || 0; save(); render(); });
+      si.addEventListener('change', () => { cfg.scores[i] = parseInt(si.value, 10) || 0; save(); render(); publishState(); });
       box.appendChild(row);
     });
     $('#sCorrect').value = cfg.correct; $('#sWrong').value = cfg.wrong;

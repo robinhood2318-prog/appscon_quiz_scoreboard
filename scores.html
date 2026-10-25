@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12162B">
+<title>Quiz scores – live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #12162B; --surface: #1C2242; --line: #2B3260; --text: #F2F4FF; --muted: #8D95C2; --gold: #FFB703;
+  font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { max-width: 980px; margin: 0 auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px calc(env(safe-area-inset-bottom, 0px) + 24px); }
+header { text-align: center; }
+h1 { margin: 0; font-size: clamp(20px, 4.4vw, 34px); font-weight: 800; line-height: 1.15; }
+.sub { color: var(--muted); font-weight: 600; font-size: clamp(14px, 3vw, 20px); margin-top: 2px; }
+.now { display: flex; justify-content: center; margin: 16px 0 6px; }
+.now span { background: var(--surface); border-radius: 999px; padding: 8px 16px; font-size: clamp(14px, 3vw, 18px); color: var(--muted); text-align: center; }
+.now b { color: var(--text); }
+
+.board { display: grid; gap: 10px; margin-top: 16px; }
+.row { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 12px;
+  background: var(--surface); border-radius: 14px; padding: 14px 16px; border-left: 8px solid var(--c); }
+.rk { font-size: 20px; font-weight: 800; color: var(--muted); }
+.row.lead .rk { color: var(--gold); }
+.nm { font-size: clamp(18px, 4vw, 24px); font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.nm small { display: block; font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.tot { font-size: clamp(30px, 7vw, 44px); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+h2 { font-size: 18px; color: var(--muted); font-weight: 600; margin: 28px 0 10px; }
+.wrap { overflow-x: auto; background: var(--surface); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 11px 12px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 16px; }
+thead th { color: var(--muted); font-weight: 600; font-size: 13px; white-space: normal; min-width: 70px; vertical-align: bottom; }
+thead th small { display: block; font-size: 11px; letter-spacing: .06em; opacity: .75; }
+th.cur, td.cur { background: rgba(255,255,255,.05); color: var(--text); }
+td.team { text-align: left; font-weight: 700; position: sticky; left: 0; background: var(--surface); }
+td.team i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); margin-right: 8px; }
+td.t { font-weight: 800; font-size: 18px; }
+td.dim { color: #4A5078; }
+tr:last-child td { border-bottom: 0; }
+
+footer { margin-top: 22px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4A5078; margin-right: 6px; }
+.live .dot { background: #2DC653; }
+.wait { text-align: center; color: var(--muted); padding: 40px 0; font-size: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">APPSCON 2026 – Quiz competition</h1>
+  <div class="sub" id="subtitle">Live scores</div>
+</header>
+<div class="now" id="nowbox" hidden><span id="now"></span></div>
+<main>
+  <div class="wait" id="wait">Waiting for the scoreboard laptop…</div>
+  <section class="board" id="board" aria-label="Standings"></section>
+  <h2 id="ovh" hidden>Round by round</h2>
+  <div class="wrap" id="ovwrap" hidden><table id="ov"></table></div>
+</main>
+<footer><span id="conn"><span class="dot"></span>Connecting</span><span id="upd"></span><span>View only</span></footer>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="config.js?v=4"></script>
+<script src="relay.js?v=1"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' })[n] || n + 'th';
+  const num = v => (v < 0 ? '\u2212' + Math.abs(v) : String(v));
+  const sgn = v => (v > 0 ? '+' + v : num(v));
+  let B = null, H = null, conn = 'connecting';
+
+  Relay.connect({
+    prefix: 'mc', subscribe: ['board', 'state'],
+    onStatus(s) { conn = s; renderConn(); },
+    onMessage(topic, m) { if (topic === 'board') B = m; else if (topic === 'state') H = m; render(); }
+  });
+
+  function render() {
+    if (!B || !Array.isArray(B.rounds) || !Array.isArray(B.teams)) return;
+    $('#wait').hidden = true;
+    $('#title').textContent = B.title || '';
+    $('#subtitle').textContent = B.subtitle || '';
+
+    // Copy the scores; the buzzer round takes the buzzer screen's newer scores.
+    const scores = B.rounds.map((_, k) => B.teams.map((__, t) => ((B.scores[k] || [])[t] || 0)));
+    const bi = B.rounds.findIndex(r => r.buzzer);
+    let ts = B.ts || 0, cur = Math.min(B.cur || 0, B.rounds.length - 1);
+    if (bi >= 0 && H && Array.isArray(H.scores) && (H.ts || 0) > ts) {
+      for (let t = 0; t < Math.min(4, B.teams.length); t++) scores[bi][t] = parseInt(H.scores[t], 10) || 0;
+      ts = H.ts;
+      cur = bi;   // the laptop is on the buzzer screen, so the buzzer round is being played
+    }
+    const total = B.teams.map((_, t) => scores.reduce((a, r) => a + r[t], 0));
+    const distinct = [...new Set(total)].sort((a, b) => b - a);
+    const rank = total.map(v => 1 + distinct.indexOf(v));
+    const anyScore = total.some(v => v !== 0);
+
+    $('#nowbox').hidden = false;
+    $('#now').innerHTML = '';
+    $('#now').append('Now playing: round ' + (cur + 1) + ' of ' + B.rounds.length + ', ');
+    const b = document.createElement('b'); b.textContent = B.rounds[cur].name; $('#now').append(b);
+
+    const order = B.teams.map((_, i) => i).sort((a, b) => total[b] - total[a] || a - b);
+    const board = $('#board'); board.textContent = '';
+    order.forEach(i => {
+      const t = B.teams[i], row = document.createElement('div');
+      row.className = 'row' + (anyScore && rank[i] === 1 ? ' lead' : '');
+      row.style.setProperty('--c', t.color);
+      row.innerHTML = '<span class="rk"></span><span class="nm"><span class="n"></span><small></small></span><span class="tot"></span>';
+      row.querySelector('.rk').textContent = anyScore ? ordinal(rank[i]) : '–';
+      row.querySelector('.n').textContent = t.name;
+      row.querySelector('small').textContent = 'This round: ' + sgn(scores[cur][i]);
+      row.querySelector('.tot').textContent = num(total[i]);
+      board.appendChild(row);
+    });
+
+    const tb = $('#ov'); tb.textContent = '';
+    const hr = tb.createTHead().insertRow();
+    const th = (txt, small, cls) => { const c = document.createElement('th'); if (cls) c.className = cls;
+      if (small) { const s = document.createElement('small'); s.textContent = small; c.appendChild(s); }
+      c.appendChild(document.createTextNode(txt)); hr.appendChild(c); };
+    th('Team', '', ''); B.rounds.forEach((r, k) => th(r.name, 'ROUND ' + (k + 1), k === cur ? 'cur' : '')); th('Total', '', '');
+    const body = tb.createTBody();
+    order.forEach(i => {
+      const tr = body.insertRow(), t = B.teams[i];
+      const n = tr.insertCell(); n.className = 'team'; n.style.setProperty('--c', t.color);
+      n.appendChild(document.createElement('i')); n.appendChild(document.createTextNode(t.name));
+      B.rounds.forEach((r, k) => {
+        const c = tr.insertCell(), v = scores[k][i], later = k > cur && !v;
+        c.textContent = later ? '–' : sgn(v);
+        c.className = (k === cur ? 'cur ' : '') + (later || !v ? 'dim' : '');
+      });
+      const tc = tr.insertCell(); tc.className = 't'; tc.textContent = num(total[i]);
+    });
+    $('#ovh').hidden = false; $('#ovwrap').hidden = false;
+    $('#upd').textContent = ts ? 'Updated ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  }
+
+  function renderConn() {
+    const el = $('#conn');
+    el.className = conn === 'online' ? 'live' : '';
+    el.innerHTML = '<span class="dot"></span>' + (conn === 'online' ? 'Live' : 'Reconnecting…');
+  }
+  renderConn();
+})();
+</script>
+</body>
+</html>
