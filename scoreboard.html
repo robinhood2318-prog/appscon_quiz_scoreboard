@@ -15,6 +15,7 @@
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; }
+.bar, .stage, .teams, .overview { -webkit-user-select: none; user-select: none; }
 body { display: grid; grid-template-rows: auto 1fr auto; }
 body.idle { cursor: none; }
 
@@ -32,8 +33,8 @@ body.idle { cursor: none; }
 .marks { margin-top: 2.6vh; display: flex; justify-content: center; gap: 1vw; font-size: 1.5vw; color: var(--muted); }
 .marks span { background: var(--surface); border-radius: 999px; padding: .6vh 1.2vw; }
 .marks b { color: var(--text); font-weight: 700; }
-.flash { font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--c); }
-.flash[hidden], .roundbox[hidden] { display: none; }
+.flash { max-width: 90vw; font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--c); }
+.flash[hidden], .roundbox[hidden], .kicker[hidden] { display: none; }
 
 /* ---------- team tiles ---------- */
 .teams { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: 1.4vw; padding: 0 3vw 3.5vh; }
@@ -41,7 +42,9 @@ body.idle { cursor: none; }
   padding: 2vh 1.4vw 1.8vh; min-width: 0; cursor: pointer; transition: box-shadow .12s, transform .12s; }
 .tile .nm { font-size: 2vw; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4.5vw; }
 .tile .sc { font-size: 6.4vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
-.tile .rd { font-size: 1.25vw; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile .lb { font-size: 1.05vw; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: .6vh; }
+.tile .rd { font-size: 1.7vw; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: .4vh; }
+.tile .rd b { color: var(--text); font-weight: 800; }
 .tile .badge { position: absolute; top: 1.8vh; right: 1.2vw; background: var(--c); color: var(--ink); font-weight: 800;
   border-radius: 999px; padding: .3vh .8vw; font-size: 1.4vw; }
 .tile .badge[hidden] { display: none; }
@@ -105,6 +108,9 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 .rpts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
 .rpts label { font-size: 12px; color: var(--muted); }
 .rpts input { width: 100%; margin-top: 3px; background: var(--surface); }
+.panel label.link { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.panel label.link input { width: 16px; height: 16px; accent-color: #FFB703; }
+.panel input:disabled { opacity: .45; }
 .ract { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .trow { display: grid; grid-template-columns: 14px 1fr 86px auto; gap: 8px; align-items: center; margin: 8px 0; }
 .trow .sw { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
@@ -183,6 +189,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     <dt>S</dt><dd>Pass: adds this round’s pass mark (a passed question answered correctly)</dd>
     <dt>B</dt><dd>Bonus: adds this round’s bonus mark</dd>
     <dt>U</dt><dd>Undo the last mark</dd>
+    <dt>Buzzer</dt><dd>The round ticked “Scores come from the buzzer screen” is scored on the buzzer screen and updates here automatically</dd>
     <dt>← →</dt><dd>Previous / next round (PageUp / PageDown on a clicker)</dd>
     <dt>O</dt><dd>Show or hide the score overview</dd>
     <dt>P</dt><dd>Show or hide this panel</dd>
@@ -205,7 +212,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
   function defaults() {
     const rounds = ['Round 1', 'Round 2', 'Round 3', 'Round 4', 'Buzzer round'].map((name, i) => ({
-      id: uid(), name, correct: 10, wrong: i === 4 ? -5 : 0, pass: i === 4 ? 0 : 5, bonus: 0 }));
+      id: uid(), name, correct: 10, wrong: i === 4 ? -5 : 0, pass: i === 4 ? 0 : 5, bonus: 0, buzzer: i === 4 }));
     return {
       title: 'APPSCON 2026 – Quiz competition', subtitle: 'Live scoreboard',
       rounds, cur: 0,
@@ -215,7 +222,11 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   }
   let D;
   try { D = JSON.parse(localStorage.getItem(KEY) || 'null') || defaults(); } catch (e) { D = defaults(); }
-  D.rounds.forEach(r => { if (typeof r.pass !== 'number') r.pass = 0; if (typeof r.bonus !== 'number') r.bonus = 0; });
+  D.rounds.forEach(r => {
+    if (typeof r.pass !== 'number') r.pass = 0;
+    if (typeof r.bonus !== 'number') r.bonus = 0;
+    if (typeof r.buzzer !== 'boolean') r.buzzer = /buzzer/i.test(r.name) && !D.rounds.some(o => o.buzzer === true);
+  });
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
 
   let sel = -1;              // selected team
@@ -223,6 +234,30 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
   const round = () => D.rounds[D.cur];
   const sc = (rid, t) => ((D.scores[rid] || [])[t] || 0);
+
+  /* ---------- link to the buzzer screen (host.html) ----------
+     Both pages are on the same site, so they share this browser's storage.
+     The round marked "buzzer" takes its scores from the buzzer screen, and the
+     buzzer screen takes its team names from here. */
+  const BUZZ_KEY = 'appscon-quiz-buzzer-v2';
+  const buzzRound = () => D.rounds.find(r => r.buzzer);
+  function readBuzz() { try { return JSON.parse(localStorage.getItem(BUZZ_KEY) || 'null'); } catch (e) { return null; } }
+  function syncBuzzer() {
+    const r = buzzRound(), b = readBuzz();
+    if (!r || !b || !Array.isArray(b.scores)) return false;
+    const next = D.teams.map((_, t) => (t < 4 ? (parseInt(b.scores[t], 10) || 0) : sc(r.id, t)));
+    const before = JSON.stringify(D.scores[r.id] || []);
+    D.scores[r.id] = next;
+    if (JSON.stringify(next) !== before) { save(); return true; }
+    return false;
+  }
+  function pushNamesToBuzzer() {
+    if (!buzzRound()) return;
+    const b = readBuzz() || {};
+    b.names = [0, 1, 2, 3].map(t => (D.teams[t] ? D.teams[t].name : 'Team ' + (t + 1)));
+    try { localStorage.setItem(BUZZ_KEY, JSON.stringify(b)); } catch (e) {}
+  }
+  const buzzMarks = () => { const b = readBuzz() || {}; return { correct: typeof b.correct === 'number' ? b.correct : 10, wrong: typeof b.wrong === 'number' ? b.wrong : -5 }; };
   const setSc = (rid, t, v) => { if (!D.scores[rid]) D.scores[rid] = []; D.scores[rid][t] = v; };
   const total = t => D.rounds.reduce((s, r) => s + sc(r.id, t), 0);
   function ranks() {
@@ -250,6 +285,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
   /* ---------- marking ---------- */
   function mark(kind) {
+    if (round().buzzer) { flashMsg('This round is scored on the buzzer screen', null); return; }
     if (sel < 0 || sel >= D.teams.length) { flashMsg('Select a team first (keys 1–' + D.teams.length + ')', null); return; }
     const r = round(), pts = r[kind];
     if (!pts) { flashMsg(kind[0].toUpperCase() + kind.slice(1) + ' is 0 in this round', null); return; }
@@ -271,7 +307,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     const f = $('#flash');
     f.textContent = text;
     f.style.setProperty('--c', team === null ? 'var(--muted)' : D.teams[team].color);
-    f.style.fontSize = team === null ? '4vw' : '';
+    f.style.fontSize = team === null ? '3vw' : '';
     f.hidden = false; $('#roundbox').hidden = true;
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => { f.hidden = true; $('#roundbox').hidden = false; }, 2200);
@@ -289,7 +325,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     tiles = D.teams.map((t, i) => {
       const el = document.createElement('div');
       el.className = 'tile';
-      el.innerHTML = '<div class="nm"></div><div class="sc"></div><div class="rd"></div><div class="badge" hidden></div>';
+      el.innerHTML = '<div class="nm"></div><div class="lb">This round</div><div class="sc"></div><div class="rd">Total <b></b></div><div class="badge" hidden></div>';
       el.addEventListener('click', () => { sel = sel === i ? -1 : i; render(); });
       box.appendChild(el);
       return el;
@@ -304,9 +340,11 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     $('#subtitle').hidden = !D.subtitle.trim();
     $('#rno').textContent = 'Round ' + (D.cur + 1) + ' of ' + D.rounds.length;
     $('#kicker').textContent = 'Round ' + (D.cur + 1);
+    $('#kicker').hidden = r.name.trim().toLowerCase() === ('round ' + (D.cur + 1));
     $('#roundName').textContent = r.name;
     const mk = $('#marks'); mk.textContent = '';
-    [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.pass], ['Bonus', r.bonus]].forEach(([lab, v]) => {
+    const bm = r.buzzer ? buzzMarks() : null;
+    (bm ? [['Correct', bm.correct], ['Wrong', bm.wrong]] : [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.pass], ['Bonus', r.bonus]]).forEach(([lab, v]) => {
       if (!v) return;
       const sp = document.createElement('span'), b = document.createElement('b');
       sp.textContent = lab + ' '; b.textContent = fmtPts(v); sp.appendChild(b); mk.appendChild(sp);
@@ -317,9 +355,9 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       const t = D.teams[i];
       el.style.setProperty('--c', t.color); el.style.setProperty('--ink', inkFor(t.color));
       el.querySelector('.nm').textContent = t.name;
-      el.querySelector('.sc').textContent = total(i);
       const rs = sc(r.id, i);
-      el.querySelector('.rd').textContent = 'This round: ' + (rs ? fmtPts(rs) : '0');
+      el.querySelector('.sc').textContent = rs < 0 ? '\u2212' + Math.abs(rs) : rs;
+      el.querySelector('.rd b').textContent = total(i) < 0 ? '\u2212' + Math.abs(total(i)) : total(i);
       const b = el.querySelector('.badge');
       b.hidden = !show; b.textContent = ordinal(rk[i]);
       el.classList.toggle('sel', i === sel);
@@ -356,7 +394,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
         td(later ? '–' : (v > 0 ? '+' + v : v < 0 ? '\u2212' + Math.abs(v) : '0'),
            (k === D.cur ? 'cur ' : '') + (later ? 'later' : v ? '' : 'zero'));
       });
-      td(total(i), 'tot');
+      td(total(i) < 0 ? '\u2212' + Math.abs(total(i)) : total(i), 'tot');
     });
   }
 
@@ -393,6 +431,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       c.innerHTML =
         '<div class="rtop"><span class="num"></span><input class="rname" aria-label="Round name"><button class="show"></button></div>' +
         '<div class="rpts"><label>Correct (C)<input type="number" class="pc"></label><label>Wrong (W)<input type="number" class="pw"></label><label>Pass (S)<input type="number" class="ps"></label><label>Bonus (B)<input type="number" class="pb"></label></div>' +
+        '<label class="link"><input type="checkbox" class="lk"> Scores come from the buzzer screen</label>' +
         '<div class="ract"><span><button class="ghost up" title="Move up">Move up</button><button class="ghost dn" title="Move down">Move down</button></span><button class="ghost del">Delete</button></div>';
       c.querySelector('.num').textContent = k + 1;
       const nm = c.querySelector('.rname'); nm.value = r.name;
@@ -401,8 +440,16 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       show.textContent = k === D.cur ? 'On screen' : 'Show';
       show.className = k === D.cur ? 'primary show' : 'show';
       show.addEventListener('click', () => { D.cur = k; sel = -1; save(); render(); renderPanel(); });
+      const lk = c.querySelector('.lk'); lk.checked = !!r.buzzer;
+      lk.addEventListener('change', () => {
+        D.rounds.forEach(o => { o.buzzer = false; });
+        r.buzzer = lk.checked;
+        if (r.buzzer) { syncBuzzer(); pushNamesToBuzzer(); }
+        save(); render(); renderPanel();
+      });
       [['.pc', 'correct'], ['.pw', 'wrong'], ['.ps', 'pass'], ['.pb', 'bonus']].forEach(([cls, key]) => {
         const inp = c.querySelector(cls); inp.value = r[key];
+        if (r.buzzer) { inp.disabled = true; inp.value = key === 'correct' ? buzzMarks().correct : key === 'wrong' ? buzzMarks().wrong : 0; inp.title = 'Set these on the buzzer screen (P panel there)'; }
         inp.addEventListener('change', () => { r[key] = parseInt(inp.value, 10) || 0; inp.value = r[key]; save(); render(); });
       });
       const up = c.querySelector('.up'), dn = c.querySelector('.dn'), del = c.querySelector('.del');
@@ -425,14 +472,14 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       row.className = 'trow'; row.style.setProperty('--c', t.color);
       row.innerHTML = '<span class="sw"></span><input aria-label="Team name"><span></span><button class="ghost del">Remove</button>';
       const inp = row.querySelector('input'); inp.value = t.name;
-      inp.addEventListener('input', () => { t.name = inp.value; save(); render(); });
+      inp.addEventListener('input', () => { t.name = inp.value; save(); pushNamesToBuzzer(); render(); });
       const del = row.querySelector('.del'); del.disabled = D.teams.length <= 2;
       del.addEventListener('click', () => {
         if (!confirm('Remove ' + t.name + ' and its marks?')) return;
         D.teams.splice(i, 1);
         Object.values(D.scores).forEach(a => a.splice(i, 1));
         D.history = D.history.filter(h => h.t !== i).map(h => (h.t > i ? Object.assign(h, { t: h.t - 1 }) : h));
-        sel = -1; save(); buildTiles(); render(); renderPanel();
+        sel = -1; save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
       });
       tl.appendChild(row);
     });
@@ -442,7 +489,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
   function renderScores() {
     const r = round();
-    $('#hRoundScores').textContent = 'Scores in round ' + (D.cur + 1) + ' (' + r.name + ')';
+    $('#hRoundScores').textContent = 'Scores in round ' + (D.cur + 1) + ' (' + r.name + ')' + (r.buzzer ? ', from the buzzer screen' : '');
     const box = $('#roundScores');
     if (box.contains(document.activeElement)) return;   // don't disturb typing
     box.textContent = '';
@@ -452,6 +499,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       row.innerHTML = '<span class="sw"></span><span class="tn"></span><input type="number" aria-label="Score"><span></span>';
       row.querySelector('.tn').textContent = t.name;
       const inp = row.querySelector('input'); inp.value = sc(r.id, i);
+      if (r.buzzer && i < 4) { inp.disabled = true; inp.title = 'Change this on the buzzer screen'; }
       inp.addEventListener('change', () => {
         const v = parseInt(inp.value, 10) || 0, old = sc(r.id, i);
         setSc(r.id, i, v); D.history.push({ r: r.id, t: i, pts: v - old }); save(); inp.value = v; render();
@@ -479,7 +527,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     if (D.teams.length >= 6) return;
     const used = D.teams.map(t => t.color);
     D.teams.push({ name: 'Team ' + (D.teams.length + 1), color: COLORS.find(c => !used.includes(c)) || COLORS[D.teams.length % 6] });
-    save(); buildTiles(); render(); renderPanel();
+    save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
   });
   $('#bUndo').addEventListener('click', undo);
   $('#bReset').addEventListener('click', () => {
@@ -541,6 +589,13 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     clearTimeout(idleT); idleT = setTimeout(() => document.body.classList.add('idle'), 3000);
   });
 
+  syncBuzzer(); pushNamesToBuzzer();
+  window.addEventListener('storage', e => { if (e.key === BUZZ_KEY && syncBuzzer()) render(); });
+  window.addEventListener('focus', () => { if (syncBuzzer()) render(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && syncBuzzer()) render(); });
+  // Coming back with the browser's Back button can restore this page from the
+  // browser's cache without reloading it: pick up the buzzer scores then too.
+  window.addEventListener('pageshow', () => { syncBuzzer(); render(); });
   buildTiles(); render();
 })();
 </script>

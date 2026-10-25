@@ -228,16 +228,21 @@ body.fs:not(.panel-open) { cursor: none; }
     }, true);
   }
 
+  // Each page load gets its own session id. A late "offline" notice from an
+  // older session (page reloaded, or the laptop came back from another page)
+  // carries the old id, so phones can tell it apart and ignore it.
+  const SID = Math.random().toString(36).slice(2, 10);
+  const announce = () => R && R.send('status', { online: true, sid: SID, ts: Date.now() }, true);
   R = Relay.connect({
     prefix: 'screen',
-    will: { topic: 'status', payload: { online: false } },
+    will: { topic: 'status', payload: { online: false, sid: SID } },
     subscribe: ['ping', 'buzz'],
-    onConnect() { R.send('status', { online: true, ts: Date.now() }, true); publishState(); },
+    onConnect() { announce(); publishState(); },
     onStatus(s) { connState = s; renderConn(); },
     onMessage(topic, m) {
       const now = Date.now();
       if (topic === 'ping') {
-        R.send('pong/' + m.cid, { n: m.n, t0: m.t0, th: now });
+        R.send('pong/' + m.cid, { n: m.n, t0: m.t0, th: now, sid: SID });
         if (m.team >= 1 && m.team <= 4) phones[m.cid] = { team: m.team - 1, last: now, rtt: m.rtt };
       } else if (topic === 'buzz') {
         if (phones[m.cid]) phones[m.cid].last = now;
@@ -250,7 +255,12 @@ body.fs:not(.panel-open) { cursor: none; }
       }
     }
   });
-  window.addEventListener('beforeunload', () => R && R.send('status', { online: false }, true));
+  window.addEventListener('beforeunload', () => R && R.send('status', { online: false, sid: SID }, true));
+  // Re-announce every 10 s, so a stale "offline" can never stick.
+  setInterval(announce, 10000);
+  // If Back/Forward restores this page from the browser's cache, start it
+  // fresh so the connection to the phones is rebuilt.
+  window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
 
   /* ---------- buzz logic ---------- */
   function onBuzz(i, t) {
