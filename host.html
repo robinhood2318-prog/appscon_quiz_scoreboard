@@ -145,7 +145,7 @@ body.fs:not(.panel-open) { cursor: none; }
   <label>Points for a wrong answer <input type="number" id="sWrong"></label>
   <label>Answer time after a buzz (s, 0 = off) <input type="number" id="sAnswer" min="0"></label>
   <label>Round clock (s, 0 = hidden) <input type="number" id="sRound" min="0"></label>
-  <label>Tie window (ms) <input type="number" id="sTie" min="100" max="1500" step="50"></label>
+  <label>Tie window, longest wait (ms) <input type="number" id="sTie" min="100" max="1500" step="50"></label>
   <h3>Keys</h3>
   <dl class="keys">
     <dt>Space</dt><dd>Open buzzers for the next question, or lock them</dd>
@@ -243,7 +243,7 @@ body.fs:not(.panel-open) { cursor: none; }
       const now = Date.now();
       if (topic === 'ping') {
         R.send('pong/' + m.cid, { n: m.n, t0: m.t0, th: now, sid: SID });
-        if (m.team >= 1 && m.team <= 4) phones[m.cid] = { team: m.team - 1, last: now, rtt: m.rtt };
+        if (m.team >= 1 && m.team <= 4) phones[m.cid] = { team: m.team - 1, last: now, rtt: m.rtt, avg: m.avg };
       } else if (topic === 'buzz') {
         if (phones[m.cid]) phones[m.cid].last = now;
         if (m.q !== cfg.q) return;
@@ -268,7 +268,20 @@ body.fs:not(.panel-open) { cursor: none; }
     if (S.order.some(o => o.team === i) || pending.some(p => p.team === i)) return;
     pending.push({ team: i, t });
     if (S.cur < S.order.length) flush();                    // someone is answering: just queue
-    else if (!flushTimer) flushTimer = setTimeout(flush, cfg.tieMs); // wait for near-simultaneous buzzes
+    else if (!flushTimer) flushTimer = setTimeout(flush, tieWait(t)); // wait for near-simultaneous buzzes
+  }
+  // How long to wait for an earlier press that may still be travelling.
+  // A press made before this one can still be on its way only from a phone
+  // whose connection is slower, so wait just until the slowest connected phone
+  // could have delivered it (half its round trip, plus a margin for jitter).
+  // On similar connections that is well under 0.1 s. The panel's tie window is
+  // the upper limit.
+  function tieWait(pressT) {
+    const now = Date.now();
+    const live = Object.values(phones).filter(p => now - p.last < 8000);
+    const oneWay = live.map(p => (typeof p.avg === 'number' ? p.avg : typeof p.rtt === 'number' ? p.rtt : 400) / 2);
+    const slowest = oneWay.length ? Math.max(...oneWay) : 200;
+    return Math.max(30, Math.min(cfg.tieMs, pressT + slowest + 60 - now));
   }
   function flush() {
     clearTimeout(flushTimer); flushTimer = null;

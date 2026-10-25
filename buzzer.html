@@ -112,7 +112,13 @@ footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13
   root.setProperty('--c', col); root.setProperty('--c-soft', col + '55'); root.setProperty('--ink', inkFor(col));
   document.querySelector('meta[name="theme-color"]').content = '#12162B';
 
-  let S = null, hostOnline = null, conn = 'connecting';
+  let S = null, conn = 'connecting';
+  // Is the quiz screen there? Judged mainly from the replies to this phone's own
+  // pings (every 2 s). A retained "offline" notice only counts if it comes from
+  // the screen session we last heard from, so a late notice left behind by an
+  // older session (page reloaded) can't lock the buzzer.
+  let hostSid = null, hostSaysOff = false, lastPong = 0;
+  const hostOk = () => (Date.now() - lastPong < 7000) || (hostSid !== null && !hostSaysOff);
   let offset = 0, bestRtt = null, samples = [], n = 0;
   let myBuzz = null;
 
@@ -128,10 +134,14 @@ footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13
         if (myBuzz && myBuzz.q !== m.q) myBuzz = null;
         render();
       } else if (topic === 'status') {
-        hostOnline = !!m.online; render();
+        if (m.online) { hostSid = m.sid || hostSid; hostSaysOff = false; }
+        else if (!m.sid || m.sid === hostSid) hostSaysOff = true;
+        render();
       } else if (topic.indexOf('pong/') === 0) {
         // Clock sync: estimate the screen's clock from the fastest round trip seen.
         const t1 = Date.now(), rtt = t1 - m.t0;
+        lastPong = t1;
+        if (m.sid && m.sid !== hostSid) { hostSid = m.sid; hostSaysOff = false; }
         if (rtt < 0 || rtt > 5000) return;
         samples.push({ rtt, off: m.th - (m.t0 + t1) / 2 });
         if (samples.length > 15) samples.shift();
@@ -142,12 +152,16 @@ footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13
     }
   });
 
-  function sendPing() { R.send('ping', { cid: R.cid, team, n: ++n, t0: Date.now(), rtt: bestRtt }); }
+  // Typical recent round trip (average of the last 5), used by the screen to
+  // decide how long to wait for a near-simultaneous buzz.
+  const avgRtt = () => { const r = samples.slice(-5).map(x => x.rtt); return r.length ? Math.round(r.reduce((a, b) => a + b, 0) / r.length) : null; };
+  function sendPing() { R.send('ping', { cid: R.cid, team, n: ++n, t0: Date.now(), rtt: bestRtt, avg: avgRtt() }); }
   function burst() { for (let i = 0; i < 6; i++) setTimeout(sendPing, i * 150); }
-  setInterval(sendPing, 3000);
+  setInterval(sendPing, 2000);
+  setInterval(render, 2000);
 
   const pos = () => (S && S.order ? S.order.findIndex(o => o.team === team) : -1);
-  const canBuzz = () => S && S.phase === 'open' && hostOnline !== false && conn === 'online'
+  const canBuzz = () => S && S.phase === 'open' && conn === 'online'
                         && !(myBuzz && myBuzz.q === S.q) && pos() < 0;
 
   function press(e) {
@@ -192,7 +206,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13
     const res = S && S.results ? S.results[team] : undefined;
 
     if (conn !== 'online') { t = 'Connecting…'; s = 'Check Wi-Fi or mobile data'; }
-    else if (hostOnline === false) { t = 'Waiting for the quiz screen'; s = 'The quizmaster’s laptop is offline'; }
+    else if (!hostOk() && !(S && S.phase === 'open')) { t = 'Waiting for the quiz screen'; s = 'The quizmaster’s laptop is not connected'; }
     else if (!S) { t = 'Connected'; s = 'Waiting for the quiz screen'; }
     else {
       const p = pos();

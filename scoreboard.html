@@ -262,7 +262,10 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   const total = t => D.rounds.reduce((s, r) => s + sc(r.id, t), 0);
   function ranks() {
     const tot = D.teams.map((_, t) => total(t));
-    return tot.map(v => 1 + tot.filter(o => o > v).length);   // ties share a rank
+    // Tied teams share a rank and the next team takes the next number:
+    // 50, 50, 50, 45 -> 1st, 1st, 1st, 2nd.
+    const distinct = [...new Set(tot)].sort((a, b) => b - a);
+    return tot.map(v => 1 + distinct.indexOf(v));
   }
   const anyScore = () => D.teams.some((_, t) => total(t) !== 0);
 
@@ -531,8 +534,14 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   });
   $('#bUndo').addEventListener('click', undo);
   $('#bReset').addEventListener('click', () => {
-    if (!confirm('Set every team’s marks in every round back to 0? Round names, marks and team names are kept.')) return;
-    D.scores = {}; D.history = []; D.cur = 0; sel = -1; save(); render(); renderPanel();
+    if (!confirm('Set every team’s marks in every round back to 0, including the buzzer screen’s scores? Round names, marks and team names are kept.')) return;
+    D.scores = {}; D.history = []; D.cur = 0; sel = -1;
+    // Also clear the buzzer screen's scores, so practice buzzes don't reappear.
+    if (buzzRound()) {
+      const b = readBuzz();
+      if (b) { b.scores = [0, 0, 0, 0]; b.q = 0; try { localStorage.setItem(BUZZ_KEY, JSON.stringify(b)); } catch (e) {} }
+    }
+    save(); render(); renderPanel();
   });
   $('#bCsv').addEventListener('click', () => {
     const q = s => '"' + String(s).replace(/"/g, '""') + '"';
