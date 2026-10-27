@@ -62,3 +62,52 @@ window.inkFor = function (hex) {
     src.buffer = BUF; src.connect(ctx.destination); src.start();
   };
 })();
+
+// ---------- Quiz-laptop lock ----------
+// host.html and scoreboard.html control the quiz. On any device that hasn't
+// been unlocked with this code, they show a notice instead and stay off the
+// relay, so opening them by mistake on a phone can't disturb the buzzers or
+// the MC's live scores. Change the code here if you like.
+window.QUIZ.operatorCode = '2026';
+window.operatorGate = function (onUnlock) {
+  const KEY = 'appscon-quiz-operator';
+  let ok = false;
+  try { ok = localStorage.getItem(KEY) === String(window.QUIZ.operatorCode); } catch (e) {}
+  if (ok) { onUnlock(); return true; }
+  const css = document.createElement('style');
+  css.textContent = `
+  .gate { position: fixed; inset: 0; z-index: 50; background: #12162B; color: #F2F4FF; display: grid; place-items: center; padding: 24px;
+    font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; cursor: auto; }
+  .gate .box { max-width: 460px; width: 100%; }
+  .gate h1 { margin: 0 0 10px; font-size: 28px; }
+  .gate p { margin: 0 0 18px; color: #8D95C2; line-height: 1.5; font-size: 16px; }
+  .gate a.go { display: block; text-align: center; background: #F2F4FF; color: #12162B; font-weight: 800; text-decoration: none; border-radius: 12px; padding: 14px; font-size: 18px; }
+  .gate .op { margin-top: 28px; padding-top: 18px; border-top: 1px solid #2B3260; }
+  .gate .op label { display: block; font-size: 14px; color: #8D95C2; margin-bottom: 8px; }
+  .gate .row { display: flex; gap: 8px; }
+  .gate input { flex: 1; min-width: 0; font: inherit; font-size: 18px; background: #1C2242; color: #F2F4FF; border: 1px solid #2B3260; border-radius: 10px; padding: 10px 12px; }
+  .gate button { font: inherit; font-weight: 700; background: #2B3260; color: #F2F4FF; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; }
+  .gate .err { color: #FF7A7A; font-size: 14px; min-height: 1.4em; margin-top: 8px; }
+  .gate :focus-visible { outline: 3px solid #FFB703; outline-offset: 2px; }`;
+  document.head.appendChild(css);
+  const g = document.createElement('div');
+  g.className = 'gate'; g.id = 'gate';
+  g.innerHTML = `<div class="box">
+    <h1>Quiz laptop only</h1>
+    <p>This page runs the quiz on the big screen. Opening it on another phone, tablet or laptop could disturb the buzzers and the live scores, so it is locked here.</p>
+    <a class="go" href="scores.html">Open the live screen</a>
+    <div class="op"><label for="gateCode">Setting up the quiz laptop? Enter the operator code once:</label>
+      <div class="row"><input id="gateCode" type="password" inputmode="numeric" autocomplete="off"><button id="gateBtn">Unlock</button></div>
+      <div class="err" id="gateErr"></div></div></div>`;
+  document.body.appendChild(g);
+  const tryCode = () => {
+    const v = g.querySelector('#gateCode').value.trim();
+    if (v !== String(window.QUIZ.operatorCode)) { g.querySelector('#gateErr').textContent = 'That code is not right.'; return; }
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+    g.remove(); onUnlock();
+  };
+  g.querySelector('#gateBtn').addEventListener('click', tryCode);
+  g.querySelector('#gateCode').addEventListener('keydown', e => { if (e.key === 'Enter') tryCode(); e.stopPropagation(); });
+  return false;
+};
+window.gateOpen = () => !!document.getElementById('gate');

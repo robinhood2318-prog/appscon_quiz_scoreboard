@@ -165,7 +165,7 @@ body.fs:not(.panel-open) { cursor: none; }
 
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="config.js?v=4"></script>
+<script src="config.js?v=5"></script>
 <script src="relay.js?v=1"></script>
 <script>
 (() => {
@@ -175,10 +175,16 @@ body.fs:not(.panel-open) { cursor: none; }
   const KEY = 'appscon-quiz-buzzer-v2';
   const DEF = { names: C.teams.map(t => t.name), scores: [0, 0, 0, 0], q: 0,
                 correct: 10, wrong: -5, answerSec: 5, roundSec: 0, tieMs: 400 };
+  // ?mirror=1: a read-only copy of the quiz laptop's buzzer screen (inside
+  // scores.html on the display system). It never talks to the phones.
+  const MIRROR = new URLSearchParams(location.search).has('mirror');
   let cfg;
-  try { cfg = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
-  catch (e) { cfg = Object.assign({}, DEF); }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
+  if (MIRROR) cfg = Object.assign({}, DEF);
+  else {
+    try { cfg = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+    catch (e) { cfg = Object.assign({}, DEF); }
+  }
+  const save = () => { if (MIRROR) return; try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
 
   const S = { phase: 'locked', order: [], cur: 0, results: {}, flash: null };
   let pending = [], flushTimer = null, R = null, connState = 'connecting';
@@ -194,6 +200,7 @@ body.fs:not(.panel-open) { cursor: none; }
   /* ---------- sound ---------- */
   let AC = null;
   function ac() {
+    if (MIRROR) return null;
     if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
     if (AC && AC.state === 'suspended') AC.resume();
     preloadBuzzSound(AC);
@@ -217,15 +224,22 @@ body.fs:not(.panel-open) { cursor: none; }
 
   /* ---------- link ---------- */
   function publishState() {
-    if (!R) return;
+    if (!R || MIRROR) return;
     const t0 = S.order.length ? S.order[0].t : 0;
+    const now = Date.now();
     R.send('state', {
       q: cfg.q, phase: S.phase, cur: S.cur,
       order: S.order.map(o => ({ team: o.team + 1, gap: o.t - t0 })),
       results: S.results,
       teams: C.teams.map((t, i) => ({ name: name(i), color: t.color })),
       scores: cfg.scores.slice(0, 4),
-      ts: Date.now()
+      // what the big screen shows, for the mirror on the display system
+      flash: S.flash && now < S.flash.until ? { team: S.flash.team, pts: S.flash.pts, left: S.flash.until - now } : null,
+      ans: answering() >= 0 ? ansLeft : null, ansSec: cfg.answerSec,
+      clock: { sec: cfg.roundSec, left: clockLeft, run: clockRun },
+      join: !$('#join').hidden,
+      presence: presenceInfo(),
+      ts: now
     }, true);
   }
 
@@ -233,8 +247,13 @@ body.fs:not(.panel-open) { cursor: none; }
   // older session (page reloaded, or the laptop came back from another page)
   // carries the old id, so phones can tell it apart and ignore it.
   const SID = Math.random().toString(36).slice(2, 10);
-  const announce = () => R && R.send('status', { online: true, sid: SID, ts: Date.now() }, true);
-  R = Relay.connect({
+  const announce = () => {
+    if (!R) return;
+    R.send('status', { online: true, sid: SID, ts: Date.now() }, true);
+    R.send('mode', { page: 'buzzer', ts: Date.now() }, true);   // displays switch to this screen
+  };
+  function startLink() {
+    R = Relay.connect({
     prefix: 'screen',
     will: { topic: 'status', payload: { online: false, sid: SID } },
     subscribe: ['ping', 'buzz'],
@@ -256,6 +275,7 @@ body.fs:not(.panel-open) { cursor: none; }
       }
     }
   });
+  }
   window.addEventListener('beforeunload', () => R && R.send('status', { online: false, sid: SID }, true));
   // Re-announce every 10 s, so a stale "offline" can never stick.
   setInterval(announce, 10000);
@@ -343,7 +363,7 @@ body.fs:not(.panel-open) { cursor: none; }
     stopAnswer();
     ansLeft = cfg.answerSec;
     if (ansLeft > 0) ansTimer = setInterval(() => {
-      ansLeft--; renderAnswer();
+      ansLeft--; renderAnswer(); publishState();
       if (ansLeft <= 0) { stopAnswer(); sTimeUp(); }
     }, 1000);
     renderAnswer();
@@ -373,7 +393,7 @@ body.fs:not(.panel-open) { cursor: none; }
   }
   function tickClock() {
     const left = Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000));
-    if (left !== clockLeft) { clockLeft = left; renderClock(); }
+    if (left !== clockLeft) { clockLeft = left; renderClock(); publishState(); }
     if (left <= 0) {
       clearInterval(clockT); clockRun = false; sTimeUp();
       if (S.phase === 'open') lock();
@@ -441,21 +461,29 @@ body.fs:not(.panel-open) { cursor: none; }
     } else { fd.hidden = true; fd.dataset.key = ''; }
   }
 
-  function renderPresence() {
+  let mirrorPresence = null;
+  function presenceInfo() {
     const now = Date.now();
-    tiles.forEach((el, i) => {
+    return C.teams.map((_, i) => {
       const live = Object.values(phones).filter(p => p.team === i && now - p.last < 8000);
       const rtts = live.map(p => p.rtt).filter(x => typeof x === 'number');
-      const pr = el.querySelector('.pr');
-      pr.classList.toggle('on', live.length > 0);
-      pr.querySelector('.pt').textContent = live.length
+      return { on: live.length > 0, text: live.length
         ? (live.length > 1 ? live.length + ' phones' : 'Phone ready') + (rtts.length ? ', ' + Math.min(...rtts) + ' ms' : '')
-        : 'No phone';
+        : 'No phone' };
+    });
+  }
+  function renderPresence() {
+    const info = MIRROR ? (mirrorPresence || presenceInfo()) : presenceInfo();
+    tiles.forEach((el, i) => {
+      const pr = el.querySelector('.pr'), d = info[i] || { on: false, text: 'No phone' };
+      pr.classList.toggle('on', !!d.on);
+      pr.querySelector('.pt').textContent = d.text;
     });
   }
 
   function renderConn() {
     const el = $('#conn');
+    if (MIRROR) { el.hidden = true; return; }
     const ok = connState === 'online';
     el.textContent = ok ? 'Connected to the buzzer relay' : 'Not connected to the buzzer relay. Check the internet, it retries every second. Keys 1–4 still work.';
     el.className = 'conn ' + (ok ? 'ok' : 'bad') + (document.body.classList.contains('panel-open') ? ' show' : '');
@@ -465,7 +493,9 @@ body.fs:not(.panel-open) { cursor: none; }
   function toggleJoin(force) {
     const j = $('#join');
     const show = typeof force === 'boolean' ? force : j.hidden;
+    if (j.hidden === !show && !show) return;
     j.hidden = !show;
+    publishState();
     if (!show) return;
     const cards = $('#cards'); cards.textContent = '';
     C.teams.forEach((t, i) => {
@@ -537,10 +567,12 @@ body.fs:not(.panel-open) { cursor: none; }
   });
 
   document.addEventListener('pointerdown', e => {
+    if (MIRROR || gateOpen()) return;
     ac();
     if (keepFs && !(e.target.closest && e.target.closest('.panel'))) enterFs();
   });
   document.addEventListener('keydown', e => {
+    if (MIRROR || gateOpen()) return;
     ac();
     if (e.target && e.target.matches && e.target.matches('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
     if (keepFs && e.key !== 'Escape' && e.key.toLowerCase() !== 'f') { $('#start').hidden = true; enterFs(); }
@@ -561,7 +593,37 @@ body.fs:not(.panel-open) { cursor: none; }
   });
 
   render(); renderClock(); renderConn(); renderPresence();
+  if (MIRROR) startMirror();
+  else {
+    operatorGate(startLink);
+    setInterval(publishState, 2000);   // keeps mirrors' phone-status line current
+  }
   setInterval(renderPresence, 1000);
+
+  /* ---------- mirror mode ---------- */
+  function startMirror() {
+    $('#start').hidden = true;
+    document.body.style.cursor = 'none';
+    let joinShown = false;
+    Relay.connect({ prefix: 'mirror-buzz', subscribe: ['state'], onMessage(topic, m) {
+      if (topic !== 'state' || !m) return;
+      cfg.q = m.q || 0;
+      if (Array.isArray(m.teams)) cfg.names = m.teams.map(t => t.name);
+      if (Array.isArray(m.scores)) cfg.scores = [0, 1, 2, 3].map(i => parseInt(m.scores[i], 10) || 0);
+      S.phase = m.phase === 'open' ? 'open' : 'locked';
+      S.order = (m.order || []).map(o => ({ team: o.team - 1, t: o.gap || 0 }));
+      S.cur = m.cur || 0;
+      S.results = m.results || {};
+      S.flash = m.flash ? { team: m.flash.team, pts: m.flash.pts, until: Date.now() + m.flash.left } : null;
+      if (S.flash) setTimeout(render, m.flash.left + 60);
+      cfg.answerSec = m.ansSec || 0;
+      ansLeft = m.ans == null ? 0 : m.ans;
+      if (m.clock) { cfg.roundSec = m.clock.sec || 0; clockLeft = m.clock.left || 0; clockRun = !!m.clock.run; }
+      mirrorPresence = m.presence || null;
+      if (!!m.join !== joinShown) { joinShown = !!m.join; toggleJoin(joinShown); }
+      render(); renderAnswer(); renderClock(); renderPresence();
+    } });
+  }
 })();
 </script>
 </body>

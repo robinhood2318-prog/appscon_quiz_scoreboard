@@ -22,6 +22,12 @@ body.idle { cursor: none; }
 /* ---------- header (same as the buzzer screen) ---------- */
 .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; padding: 2.4vh 3vw 0; }
 .rno { font-size: 1.9vw; color: var(--muted); justify-self: start; }
+.timer { justify-self: end; text-align: right; line-height: 1; }
+.timer[hidden] { display: block; visibility: hidden; }
+.timer small { display: block; font-size: 1.2vw; font-weight: 600; color: var(--muted); letter-spacing: .04em; margin-bottom: .6vh; }
+.timer span { font-size: 5.6vw; font-weight: 800; font-variant-numeric: tabular-nums; }
+.timer.low span, .timer.done span { color: var(--alert); }
+.timer.paused span { opacity: .55; }
 .event { text-align: center; }
 .ev1 { display: block; font-weight: 800; font-size: 2.8vw; line-height: 1.15; }
 .ev2 { display: block; color: var(--muted); font-size: 2.1vw; font-weight: 600; margin-top: .4vh; }
@@ -106,6 +112,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 .rtop .num { font-weight: 800; color: var(--muted); width: 22px; text-align: center; }
 .rtop input { width: 100%; background: var(--surface); }
 .rpts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+.rpts.r3 { grid-template-columns: repeat(3, 1fr); }
 .rpts label { font-size: 12px; color: var(--muted); }
 .rpts input { width: 100%; margin-top: 3px; background: var(--surface); }
 .panel label.link { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
@@ -121,6 +128,23 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
 .start { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; place-items: center; text-align: center; cursor: pointer; }
 .start[hidden] { display: none; }
+.custom { position: fixed; inset: 0; z-index: 12; background: rgba(10,12,26,.6); display: grid; place-items: center; cursor: auto; }
+.custom[hidden] { display: none; }
+.cmbox { width: min(520px, 92vw); background: var(--surface); border: 1px solid var(--line); border-top: 8px solid var(--c, var(--line)); border-radius: 14px; padding: 22px; font-size: 15px; }
+.cmbox h2 { margin: 0 0 4px; font-size: 22px; }
+.cmnote { margin: 0 0 14px; color: var(--muted); }
+.cmquick { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+.cmquick button, .cmbtns button { font: inherit; font-weight: 700; background: var(--line); color: var(--text); border: 0; border-radius: 10px; padding: 12px 8px; cursor: pointer; }
+.cmquick button small { display: block; font-weight: 600; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.cmquick button:hover, .cmbtns button:hover { filter: brightness(1.15); }
+.cmown { display: block; margin-top: 16px; color: var(--muted); font-size: 13px; }
+.cmown input { display: block; width: 100%; margin-top: 6px; font: inherit; font-size: 20px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-align: right; }
+.cmbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.cmbtns .primary { background: var(--text); color: var(--bg); }
+body.mirror { cursor: none; }
+body.mirror .tile, body.mirror .ovtab { cursor: none; }
+.mwait { position: fixed; inset: 0; z-index: 15; background: var(--bg); color: var(--muted); display: grid; place-items: center; font-size: 3vw; font-weight: 600; }
+.mwait[hidden] { display: none; }
 .start b { display: block; font-size: 4vw; font-weight: 800; }
 .start span { display: block; margin-top: 1.5vh; font-size: 1.6vw; color: var(--muted); }
 
@@ -134,7 +158,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 <header class="bar">
   <div class="rno" id="rno">Round 1 of 5</div>
   <div class="event"><span class="ev1" id="title"></span><span class="ev2" id="subtitle"></span></div>
-  <div></div>
+  <div class="timer" id="timer" hidden><small id="tlabel">Direct question</small><span id="tval">0:30</span></div>
 </header>
 
 <main class="stage">
@@ -165,7 +189,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   <h3>Rounds and marks</h3>
   <p class="note">The highlighted round is on screen. Marks are set per round: Correct (C), Wrong (W), Pass (S) for a passed question answered correctly, and Bonus (B). Use a minus sign for negative marking; 0 switches a mark off.</p>
   <div id="roundList"></div>
-  <div class="btns"><button id="bAddRound">Add round</button></div>
+  <div class="btns"><button id="bAddRound">Add round</button><button id="bPlan">Restore the quiz plan</button></div>
 
   <h3>Teams</h3>
   <div id="teamList"></div>
@@ -176,6 +200,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   <div id="roundScores"></div>
 
   <div class="btns">
+    <button id="bCustom">Custom mark (M)</button>
     <button id="bUndo">Undo last mark</button>
     <button id="bCsv">Download scores (CSV)</button>
     <button id="bReset">Reset all scores</button>
@@ -184,11 +209,15 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   <h3>Keys</h3>
   <dl class="keys">
     <dt>1–6</dt><dd>Select a team (or click its tile)</dd>
-    <dt>C</dt><dd>Correct: adds this round’s correct mark to the selected team</dd>
-    <dt>W</dt><dd>Wrong: adds this round’s wrong mark (negative marking)</dd>
-    <dt>S</dt><dd>Pass: adds this round’s pass mark (a passed question answered correctly)</dd>
+    <dt>C</dt><dd>Correct: adds the correct mark to the selected team (press once per sub-question)</dd>
+    <dt>W</dt><dd>Wrong or unanswered: adds the wrong mark (if any), selects the next team and starts the pass timer</dd>
+    <dt>S</dt><dd>Pass: adds the pass mark (a passed question answered correctly, once per sub-question)</dd>
     <dt>B</dt><dd>Bonus: adds this round’s bonus mark</dd>
+    <dt>M</dt><dd>Custom mark for a partly correct answer: ¼, ½, ¾ or any number (decimals allowed)</dd>
     <dt>U</dt><dd>Undo the last mark</dd>
+    <dt>T</dt><dd>Start the direct-question timer (30 s)</dd>
+    <dt>Y</dt><dd>Start the pass-question timer (5 s); W starts it by itself</dd>
+    <dt>Space / X</dt><dd>Pause or resume the timer / hide it</dd>
     <dt>Buzzer</dt><dd>The round ticked “Scores come from the buzzer screen” is scored on the buzzer screen and updates here automatically</dd>
     <dt>← →</dt><dd>Previous / next round (PageUp / PageDown on a clicker)</dd>
     <dt>O</dt><dd>Show or hide the score overview</dd>
@@ -197,24 +226,48 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   </dl>
 </aside>
 
+<div class="custom" id="custom" hidden role="dialog" aria-labelledby="cmTitle">
+  <div class="cmbox">
+    <h2 id="cmTitle">Custom mark</h2>
+    <p class="cmnote" id="cmNote"></p>
+    <div class="cmquick" id="cmQuick"></div>
+    <label class="cmown">Or type any mark (decimals and minus allowed)<input id="cmInput" type="number" step="any" inputmode="decimal"></label>
+    <div class="cmbtns"><button id="cmCancel">Cancel (Esc)</button><button class="primary" id="cmApply">Give mark (Enter)</button></div>
+  </div>
+</div>
 <div class="start" id="start"><div><b>Click anywhere to start</b><span>The scoreboard opens in full screen</span></div></div>
 
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
-<script src="config.js?v=4"></script>
+<script src="config.js?v=5"></script>
 <script src="relay.js?v=1"></script>
 <script>
 (() => {
   'use strict';
   const $ = s => document.querySelector(s);
-  const KEY = 'appscon-quiz-scoreboard-v1';
+  const KEY = 'appscon-quiz-scoreboard-v2';
+  const OLD_KEY = 'appscon-quiz-scoreboard-v1';
   const COLORS = ['#E63946', '#3A86FF', '#FFB703', '#2DC653', '#B15CFF', '#FF7A1A'];
   const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' })[n] || n + 'th';
   const fmtPts = p => (p > 0 ? '+' : p < 0 ? '\u2212' : '') + Math.abs(p);
   const uid = () => 'r' + Math.random().toString(36).slice(2, 9);
 
+  // The quiz plan from the organisers' guidelines. Every value can be changed
+  // in the panel (P). Marks are per sub-question.
+  //   Two-part question: 10 per sub-question (20 a question); a passed question
+  //   earns 5 per sub-question. One-part question: 10 direct, 5 on a pass.
+  //   Time: 30 s for the direct question, 5 s for a passed question.
+  function planRounds() {
+    const two = { parts: 2 }, one = { parts: 1 };
+    return [
+      ['Round 1 – Part 1', two], ['Round 1 – Part 2', one],
+      ['Round 2 – Part 1', one], ['Round 2 – Part 2', one],
+      ['Round 3 – Part 1', one], ['Round 3 – Part 2', two],
+      ['Round 4 – Part 1', one], ['Round 4 – Part 2', one]
+    ].map(([name, o]) => ({ id: uid(), name, correct: 10, wrong: 0, pass: 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false }))
+      .concat([{ id: uid(), name: 'Round 5 – Buzzer round', correct: 10, wrong: 0, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }]);
+  }
   function defaults() {
-    const rounds = ['Round 1', 'Round 2', 'Round 3', 'Round 4', 'Buzzer round'].map((name, i) => ({
-      id: uid(), name, correct: 10, wrong: i === 4 ? -5 : 0, pass: i === 4 ? 0 : 5, bonus: 0, buzzer: i === 4 }));
+    const rounds = planRounds();
     return {
       title: 'APPSCON 2026 – Quiz competition', subtitle: 'Live scoreboard',
       rounds, cur: 0,
@@ -222,28 +275,51 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       scores: {}, history: []
     };
   }
+  // ?mirror=1: a read-only copy that shows exactly what the quiz laptop shows
+  // (used inside scores.html on the display system and the MC's device).
+  const MIRROR = new URLSearchParams(location.search).has('mirror');
   let D;
-  try { D = JSON.parse(localStorage.getItem(KEY) || 'null') || defaults(); } catch (e) { D = defaults(); }
+  if (MIRROR) D = defaults();
+  else {
+    try { D = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { D = null; }
+    if (!D) {
+      // First start with the quiz plan: keep the team names and title typed before.
+      D = defaults();
+      try {
+        const old = JSON.parse(localStorage.getItem(OLD_KEY) || 'null');
+        if (old && Array.isArray(old.teams) && old.teams.length) { D.teams = old.teams; D.title = old.title || D.title; D.subtitle = old.subtitle || D.subtitle; }
+      } catch (e) {}
+    }
+  }
   D.rounds.forEach(r => {
     if (typeof r.pass !== 'number') r.pass = 0;
     if (typeof r.bonus !== 'number') r.bonus = 0;
     if (typeof r.buzzer !== 'boolean') r.buzzer = /buzzer/i.test(r.name) && !D.rounds.some(o => o.buzzer === true);
+    if (typeof r.parts !== 'number') r.parts = 1;
+    if (typeof r.tDirect !== 'number') r.tDirect = 0;
+    if (typeof r.tPass !== 'number') r.tPass = 0;
   });
   const save = () => {
+    if (MIRROR) return;
     D.ts = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {}
-    setTimeout(publishBoard, 0);
+    schedulePublish();
   };
 
   /* ---------- live copy for the MC's view-only page (scores.html) ----------
      Sent over the same relay as the buzzers. The scoreboard keeps working
      without internet; the MC's page just stops updating. */
-  let BR = null;
+  let BR = null, pubT = null, lastFlash = null;
+  function schedulePublish() { if (!MIRROR && !pubT) pubT = setTimeout(() => { pubT = null; publishBoard(); }, 0); }
   function publishBoard() {
-    if (!BR) return;
+    if (!BR || MIRROR) return;
+    const now = Date.now();
     BR.send('board', {
       title: D.title, subtitle: D.subtitle, cur: D.cur,
-      rounds: D.rounds.map(r => ({ name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, buzzer: !!r.buzzer })),
+      ov: $('#overview').classList.contains('open'), sel,
+      flash: lastFlash ? Object.assign({}, lastFlash, { left: Math.max(0, lastFlash.until - now) }) : null,
+      timer: Object.assign({}, TM),
+      rounds: D.rounds.map(r => ({ name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, parts: r.parts, tDirect: r.tDirect, tPass: r.tPass, buzzer: !!r.buzzer })),
       teams: D.teams.map(t => ({ name: t.name, color: t.color })),
       scores: D.rounds.map(r => D.teams.map((_, t) => ((D.scores[r.id] || [])[t] || 0))),
       ts: D.ts || Date.now()
@@ -279,8 +355,9 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     try { localStorage.setItem(BUZZ_KEY, JSON.stringify(b)); } catch (e) {}
   }
   const buzzMarks = () => { const b = readBuzz() || {}; return { correct: typeof b.correct === 'number' ? b.correct : 10, wrong: typeof b.wrong === 'number' ? b.wrong : -5 }; };
-  const setSc = (rid, t, v) => { if (!D.scores[rid]) D.scores[rid] = []; D.scores[rid][t] = v; };
-  const total = t => D.rounds.reduce((s, r) => s + sc(r.id, t), 0);
+  const r2 = v => Math.round(v * 100) / 100;
+  const setSc = (rid, t, v) => { if (!D.scores[rid]) D.scores[rid] = []; D.scores[rid][t] = r2(v); };
+  const total = t => r2(D.rounds.reduce((s, r) => s + sc(r.id, t), 0));
   function ranks() {
     const tot = D.teams.map((_, t) => total(t));
     // Tied teams share a rank and the next team takes the next number:
@@ -312,29 +389,123 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     if (round().buzzer) { flashMsg('This round is scored on the buzzer screen', null); return; }
     if (sel < 0 || sel >= D.teams.length) { flashMsg('Select a team first (keys 1–' + D.teams.length + ')', null); return; }
     const r = round(), pts = r[kind];
+    if (kind === 'wrong') {
+      // Wrong or unanswered: the question passes to the next team.
+      if (pts) { setSc(r.id, sel, sc(r.id, sel) + pts); D.history.push({ r: r.id, t: sel, pts }); save(); sDown(); bump(sel); }
+      const from = sel; sel = (sel + 1) % D.teams.length;
+      flashMsg((pts ? D.teams[from].name + '  ' + fmtPts(pts) + ', passed to ' : 'Passed to ') + D.teams[sel].name, sel, pts ? 'down' : '');
+      startTimer('pass');
+      render();
+      return;
+    }
     if (!pts) { flashMsg(kind[0].toUpperCase() + kind.slice(1) + ' is 0 in this round', null); return; }
+    if (kind === 'correct' || kind === 'pass') stopTimer();
     setSc(r.id, sel, sc(r.id, sel) + pts);
     D.history.push({ r: r.id, t: sel, pts });
     if (D.history.length > 500) D.history.shift();
     save();
     pts > 0 ? sUp() : sDown();
-    flashMsg(D.teams[sel].name + '  ' + fmtPts(pts) + (kind === 'pass' ? ' (pass)' : kind === 'bonus' ? ' (bonus)' : ''), sel);
+    flashMsg(D.teams[sel].name + '  ' + fmtPts(pts) + (kind === 'pass' ? ' (pass)' : kind === 'bonus' ? ' (bonus)' : ''), sel, pts > 0 ? 'up' : 'down');
     bump(sel);
     render();
   }
+  /* ---------- question timer (direct 30 s, pass 5 s by default) ---------- */
+  let TM = { kind: null, left: 0, run: false, done: false }, tEnd = 0, tInt = null, tHide = null;
+  function startTimer(kind) {
+    const r = round(), sec = kind === 'pass' ? r.tPass : r.tDirect;
+    clearInterval(tInt); clearTimeout(tHide);
+    if (!sec || r.buzzer) { TM = { kind: null, left: 0, run: false, done: false }; renderTimer(); return; }
+    TM = { kind, left: sec, run: true, done: false }; tEnd = Date.now() + sec * 1000;
+    tInt = setInterval(tickTimer, 100);
+    renderTimer();
+  }
+  function tickTimer() {
+    const left = Math.max(0, Math.ceil((tEnd - Date.now()) / 1000));
+    if (left !== TM.left) { TM.left = left; renderTimer(); }
+    if (left <= 0) {
+      clearInterval(tInt); TM.run = false; TM.done = true; sTimeUp(); renderTimer();
+      tHide = setTimeout(() => { if (TM.done) stopTimer(); }, 4000);
+    }
+  }
+  function pauseTimer() {
+    if (TM.run) { clearInterval(tInt); TM.left = Math.max(0, Math.ceil((tEnd - Date.now()) / 1000)); TM.run = false; }
+    else if (TM.kind && !TM.done && TM.left > 0) { tEnd = Date.now() + TM.left * 1000; TM.run = true; tInt = setInterval(tickTimer, 100); }
+    renderTimer();
+  }
+  function stopTimer() { clearInterval(tInt); clearTimeout(tHide); TM = { kind: null, left: 0, run: false, done: false }; renderTimer(); }
+  function renderTimer() {
+    const el = $('#timer');
+    el.hidden = !TM.kind;
+    $('#tlabel').textContent = TM.kind === 'pass' ? 'Pass question' : 'Direct question';
+    $('#tval').textContent = TM.done ? 'Time' : Math.floor(TM.left / 60) + ':' + String(TM.left % 60).padStart(2, '0');
+    el.classList.toggle('low', !TM.done && TM.left <= 5 && TM.kind === 'direct');
+    el.classList.toggle('done', TM.done);
+    el.classList.toggle('paused', !!TM.kind && !TM.run && !TM.done);
+    schedulePublish();
+  }
+  const sTimeUp = () => tone(220, .7, 'sawtooth', .2);
+
+  /* ---------- custom (part) marks: ¼, ½, ¾ or any number ---------- */
+  function openCustom() {
+    if (round().buzzer) { flashMsg('This round is scored on the buzzer screen', null); return; }
+    if (sel < 0 || sel >= D.teams.length) { flashMsg('Select a team first (keys 1–' + D.teams.length + ')', null); return; }
+    const r = round(), t = D.teams[sel], box = $('#custom');
+    box.querySelector('.cmbox').style.setProperty('--c', t.color);
+    $('#cmTitle').textContent = 'Custom mark for ' + t.name;
+    $('#cmNote').textContent = 'For a partly correct answer. ' + r.name + ': correct ' + fmtPts(r.correct) + (r.pass ? ', pass ' + fmtPts(r.pass) : '') + (r.parts > 1 ? ' per sub-question' : '') + '.';
+    const q = $('#cmQuick'); q.textContent = '';
+    const opts = [];
+    if (r.correct) [[0.25, '¼'], [0.5, '½'], [0.75, '¾']].forEach(([f, lab]) => opts.push([lab + ' of correct', r2(r.correct * f)]));
+    if (r.pass) [[0.5, '½']].forEach(([f, lab]) => opts.push([lab + ' of pass', r2(r.pass * f)]));
+    opts.forEach(([lab, v]) => {
+      const b = document.createElement('button');
+      b.innerHTML = '<span></span><small></small>';
+      b.querySelector('span').textContent = fmtPts(v); b.querySelector('small').textContent = lab;
+      b.addEventListener('click', () => giveCustom(v));
+      q.appendChild(b);
+    });
+    $('#cmInput').value = '';
+    box.hidden = false;
+    setTimeout(() => $('#cmInput').focus(), 0);
+  }
+  function closeCustom() { $('#custom').hidden = true; }
+  function giveCustom(v) {
+    const pts = r2(parseFloat(v));
+    closeCustom();
+    if (!pts || sel < 0) return;
+    const r = round();
+    setSc(r.id, sel, sc(r.id, sel) + pts);
+    D.history.push({ r: r.id, t: sel, pts });
+    if (D.history.length > 500) D.history.shift();
+    save(); stopTimer();
+    pts > 0 ? sUp() : sDown();
+    flashMsg(D.teams[sel].name + '  ' + fmtPts(pts), sel, pts > 0 ? 'up' : 'down');
+    bump(sel); render();
+  }
+  $('#cmCancel').addEventListener('click', closeCustom);
+  $('#cmApply').addEventListener('click', () => giveCustom($('#cmInput').value));
+  $('#cmInput').addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') giveCustom($('#cmInput').value);
+    else if (e.key === 'Escape') closeCustom();
+  });
+  $('#custom').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeCustom(); } });
+
   function undo() {
     const h = D.history.pop(); if (!h) return;
     if (D.scores[h.r]) setSc(h.r, h.t, sc(h.r, h.t) - h.pts);
     save(); flashMsg('Undone', null); render();
   }
-  function flashMsg(text, team) {
+  function flashMsg(text, team, kind, ms) {
+    ms = ms || 2200;
+    if (!MIRROR) { lastFlash = { id: Date.now() + Math.random(), text, team, kind: kind || '', until: Date.now() + ms }; schedulePublish(); }
     const f = $('#flash');
     f.textContent = text;
     f.style.setProperty('--c', team === null ? 'var(--muted)' : D.teams[team].color);
     f.style.fontSize = team === null ? '3vw' : '';
     f.hidden = false; $('#roundbox').hidden = true;
     clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { f.hidden = true; $('#roundbox').hidden = false; }, 2200);
+    flashTimer = setTimeout(() => { f.hidden = true; $('#roundbox').hidden = false; }, ms);
   }
   function bump(t) {
     const el = tiles[t]; if (!el) return;
@@ -350,7 +521,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       const el = document.createElement('div');
       el.className = 'tile';
       el.innerHTML = '<div class="nm"></div><div class="lb">This round</div><div class="sc"></div><div class="rd">Total <b></b></div><div class="badge" hidden></div>';
-      el.addEventListener('click', () => { sel = sel === i ? -1 : i; render(); });
+      el.addEventListener('click', () => { if (MIRROR || gateOpen()) return; sel = sel === i ? -1 : i; render(); });
       box.appendChild(el);
       return el;
     });
@@ -362,17 +533,20 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     const r = round();
     $('#title').textContent = D.title; $('#subtitle').textContent = D.subtitle;
     $('#subtitle').hidden = !D.subtitle.trim();
-    $('#rno').textContent = 'Round ' + (D.cur + 1) + ' of ' + D.rounds.length;
+    $('#rno').textContent = (D.cur + 1) + ' of ' + D.rounds.length;
     $('#kicker').textContent = 'Round ' + (D.cur + 1);
-    $('#kicker').hidden = r.name.trim().toLowerCase() === ('round ' + (D.cur + 1));
+    $('#kicker').hidden = /^\s*round\b/i.test(r.name);
+    $('#roundName').style.fontSize = r.name.length > 26 ? '5vw' : r.name.length > 16 ? '6.4vw' : '';
     $('#roundName').textContent = r.name;
     const mk = $('#marks'); mk.textContent = '';
     const bm = r.buzzer ? buzzMarks() : null;
+    const each = !bm && r.parts > 1 ? ' each' : '';
+    const pill = (lab, val) => { const sp = document.createElement('span'), b = document.createElement('b'); sp.textContent = lab + ' '; b.textContent = val; sp.appendChild(b); mk.appendChild(sp); };
+    if (each) pill('Sub-questions', r.parts);
     (bm ? [['Correct', bm.correct], ['Wrong', bm.wrong]] : [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.pass], ['Bonus', r.bonus]]).forEach(([lab, v]) => {
-      if (!v) return;
-      const sp = document.createElement('span'), b = document.createElement('b');
-      sp.textContent = lab + ' '; b.textContent = fmtPts(v); sp.appendChild(b); mk.appendChild(sp);
+      if (v) pill(lab, fmtPts(v) + each);
     });
+    if (!bm && (r.tDirect || r.tPass)) pill('Time', [r.tDirect ? r.tDirect + ' s' : '', r.tPass ? 'pass ' + r.tPass + ' s' : ''].filter(Boolean).join(', '));
 
     const rk = ranks(), show = anyScore();
     tiles.forEach((el, i) => {
@@ -388,6 +562,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     });
     renderOverview();
     if (!$('#panel').hidden) renderScores();
+    schedulePublish();
   }
 
   function renderOverview() {
@@ -401,7 +576,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       c.appendChild(document.createTextNode(txt)); thead.appendChild(c);
     };
     th('Rank'); th('Team', 'team');
-    D.rounds.forEach((r, k) => th(r.name, k === D.cur ? 'cur' : '', 'ROUND ' + (k + 1)));
+    D.rounds.forEach((r, k) => th(r.name, k === D.cur ? 'cur' : '', /^\s*round\b/i.test(r.name) ? '' : 'ROUND ' + (k + 1)));
     th('Total');
     const body = tb.createTBody();
     // Rows sorted by total, highest first; team order breaks ties.
@@ -429,12 +604,13 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     $('#ovtab').setAttribute('aria-expanded', open);
     $('#ovtab').textContent = open ? 'CLOSE' : 'OVERVIEW';
     $('#ovtab').classList.toggle('open', open);
+    schedulePublish();
   }
 
   function goRound(d) {
     const n = Math.max(0, Math.min(D.rounds.length - 1, D.cur + d));
     if (n === D.cur) return;
-    D.cur = n; sel = -1; save(); render(); if (!$('#panel').hidden) renderPanel();
+    D.cur = n; sel = -1; stopTimer(); save(); render(); if (!$('#panel').hidden) renderPanel();
   }
 
   /* ---------- quizmaster panel ---------- */
@@ -455,6 +631,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       c.innerHTML =
         '<div class="rtop"><span class="num"></span><input class="rname" aria-label="Round name"><button class="show"></button></div>' +
         '<div class="rpts"><label>Correct (C)<input type="number" class="pc"></label><label>Wrong (W)<input type="number" class="pw"></label><label>Pass (S)<input type="number" class="ps"></label><label>Bonus (B)<input type="number" class="pb"></label></div>' +
+        '<div class="rpts r3"><label>Sub-questions<input type="number" class="pp" min="1"></label><label>Time, direct (s)<input type="number" class="pt" min="0"></label><label>Time, pass (s)<input type="number" class="pq" min="0"></label></div>' +
         '<label class="link"><input type="checkbox" class="lk"> Scores come from the buzzer screen</label>' +
         '<div class="ract"><span><button class="ghost up" title="Move up">Move up</button><button class="ghost dn" title="Move down">Move down</button></span><button class="ghost del">Delete</button></div>';
       c.querySelector('.num').textContent = k + 1;
@@ -475,6 +652,11 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
         const inp = c.querySelector(cls); inp.value = r[key];
         if (r.buzzer) { inp.disabled = true; inp.value = key === 'correct' ? buzzMarks().correct : key === 'wrong' ? buzzMarks().wrong : 0; inp.title = 'Set these on the buzzer screen (P panel there)'; }
         inp.addEventListener('change', () => { r[key] = parseInt(inp.value, 10) || 0; inp.value = r[key]; save(); render(); });
+      });
+      [['.pp', 'parts', 1], ['.pt', 'tDirect', 0], ['.pq', 'tPass', 0]].forEach(([cls, key, min]) => {
+        const inp = c.querySelector(cls); inp.value = r[key];
+        if (r.buzzer) { inp.disabled = true; inp.title = 'The buzzer screen has its own timer'; }
+        inp.addEventListener('change', () => { r[key] = Math.max(min, parseInt(inp.value, 10) || 0); inp.value = r[key]; save(); render(); });
       });
       const up = c.querySelector('.up'), dn = c.querySelector('.dn'), del = c.querySelector('.del');
       up.disabled = k === 0; dn.disabled = k === D.rounds.length - 1; del.disabled = D.rounds.length <= 1;
@@ -522,11 +704,11 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
       row.className = 'trow'; row.style.setProperty('--c', t.color);
       row.innerHTML = '<span class="sw"></span><span class="tn"></span><input type="number" aria-label="Score"><span></span>';
       row.querySelector('.tn').textContent = t.name;
-      const inp = row.querySelector('input'); inp.value = sc(r.id, i);
+      const inp = row.querySelector('input'); inp.value = sc(r.id, i); inp.step = 'any';
       if (r.buzzer && i < 4) { inp.disabled = true; inp.title = 'Change this on the buzzer screen'; }
       inp.addEventListener('change', () => {
-        const v = parseInt(inp.value, 10) || 0, old = sc(r.id, i);
-        setSc(r.id, i, v); D.history.push({ r: r.id, t: i, pts: v - old }); save(); inp.value = v; render();
+        const v = r2(parseFloat(inp.value) || 0), old = sc(r.id, i);
+        setSc(r.id, i, v); D.history.push({ r: r.id, t: i, pts: r2(v - old) }); save(); inp.value = v; render();
       });
       box.appendChild(row);
     });
@@ -541,9 +723,14 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 
   $('#iTitle').addEventListener('input', e => { D.title = e.target.value; save(); render(); });
   $('#iSub').addEventListener('input', e => { D.subtitle = e.target.value; save(); render(); });
+  $('#bPlan').addEventListener('click', () => {
+    if (!confirm('Replace all rounds with the quiz plan (Round 1 – Part 1 … Round 5 – Buzzer round, with its marks and times)? All marks scored so far are cleared. Team names are kept.')) return;
+    D.rounds = planRounds(); D.scores = {}; D.history = []; D.cur = 0; sel = -1; stopTimer();
+    save(); render(); renderPanel();
+  });
   $('#bAddRound').addEventListener('click', () => {
-    const last = D.rounds[D.rounds.length - 1] || { correct: 10, wrong: 0, pass: 5, bonus: 0 };
-    D.rounds.push({ id: uid(), name: 'Round ' + (D.rounds.length + 1), correct: last.correct, wrong: last.wrong, pass: last.pass, bonus: last.bonus });
+    const last = D.rounds.filter(r => !r.buzzer).pop() || { correct: 10, wrong: 0, pass: 5, bonus: 0, parts: 1, tDirect: 30, tPass: 5 };
+    D.rounds.push({ id: uid(), name: 'Round ' + (D.rounds.length + 1), correct: last.correct, wrong: last.wrong, pass: last.pass, bonus: last.bonus, parts: last.parts, tDirect: last.tDirect, tPass: last.tPass, buzzer: false });
     save(); render(); renderPanel();
     const inputs = document.querySelectorAll('#roundList .rname'); inputs[inputs.length - 1].select();
   });
@@ -554,6 +741,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
   });
   $('#bUndo').addEventListener('click', undo);
+  $('#bCustom').addEventListener('click', openCustom);
   $('#bReset').addEventListener('click', () => {
     if (!confirm('Set every team’s marks in every round back to 0, including the buzzer screen’s scores? Round names, marks and team names are kept.')) return;
     D.scores = {}; D.history = []; D.cur = 0; sel = -1;
@@ -573,7 +761,7 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     a.href = URL.createObjectURL(blob); a.download = 'APPSCON 2026 quiz scores.csv';
     document.body.appendChild(a); a.click(); a.remove();
   });
-  $('#ovtab').addEventListener('click', () => toggleOverview());
+  $('#ovtab').addEventListener('click', () => { if (!MIRROR) toggleOverview(); });
 
   /* ---------- full screen (same behaviour as the buzzer screen) ---------- */
   let keepFs = true;
@@ -584,10 +772,13 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
   $('#start').addEventListener('click', () => { ac(); $('#start').hidden = true; enterFs(); });
 
   document.addEventListener('pointerdown', e => {
+    if (MIRROR || gateOpen()) return;
     ac();
     if (keepFs && !(e.target.closest && e.target.closest('.panel'))) enterFs();
   });
   document.addEventListener('keydown', e => {
+    if (MIRROR || gateOpen()) return;
+    if (!$('#custom').hidden) { if (e.key === 'Escape') closeCustom(); return; }
     ac();
     if (e.target && e.target.matches && e.target.matches('input, textarea, select')) {
       if (e.key === 'Escape' || e.key === 'Enter') e.target.blur();
@@ -601,7 +792,12 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     else if (k === 'w') mark('wrong');
     else if (k === 's') mark('pass');
     else if (k === 'b') mark('bonus');
+    else if (k === 'm') { e.preventDefault(); openCustom(); }
     else if (k === 'u') undo();
+    else if (k === 't') startTimer('direct');
+    else if (k === 'y') startTimer('pass');
+    else if (k === ' ') { e.preventDefault(); pauseTimer(); }
+    else if (k === 'x') stopTimer();
     else if (k === 'arrowright' || k === 'pagedown') { e.preventDefault(); goRound(1); }
     else if (k === 'arrowleft' || k === 'pageup') { e.preventDefault(); goRound(-1); }
     else if (k === 'o') toggleOverview();
@@ -619,15 +815,47 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
     clearTimeout(idleT); idleT = setTimeout(() => document.body.classList.add('idle'), 3000);
   });
 
+  if (MIRROR) startMirror();
+  else {
   syncBuzzer(); pushNamesToBuzzer();
-  try { if (window.mqtt && window.Relay) BR = Relay.connect({ prefix: 'board', subscribe: [], onConnect: publishBoard }); } catch (e) {}
+  // Tell displays which page the quiz laptop is on, so they show the same one.
+  const announceMode = () => BR && BR.send('mode', { page: 'board', ts: Date.now() }, true);
+  operatorGate(() => { try { if (window.mqtt && window.Relay) BR = Relay.connect({ prefix: 'board', subscribe: [], onConnect: () => { announceMode(); publishBoard(); } }); } catch (e) {} });
   setInterval(publishBoard, 15000);
+  setInterval(announceMode, 10000);
   window.addEventListener('storage', e => { if (e.key === BUZZ_KEY && syncBuzzer()) render(); });
   window.addEventListener('focus', () => { if (syncBuzzer()) render(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && syncBuzzer()) render(); });
   // Coming back with the browser's Back button can restore this page from the
   // browser's cache without reloading it: pick up the buzzer scores then too.
   window.addEventListener('pageshow', () => { syncBuzzer(); render(); });
+  }
+
+  /* ---------- mirror mode ---------- */
+  function startMirror() {
+    $('#start').hidden = true;
+    document.body.classList.add('mirror');
+    const w = document.createElement('div');
+    w.className = 'mwait'; w.id = 'mwait'; w.textContent = 'Waiting for the quiz laptop…';
+    document.body.appendChild(w);
+    let lastId = null;
+    Relay.connect({ prefix: 'mirror-board', subscribe: ['board'], onMessage(topic, m) {
+      if (topic !== 'board' || !m || !Array.isArray(m.rounds) || !Array.isArray(m.teams)) return;
+      const rounds = m.rounds.map((r, k) => Object.assign({ id: 'm' + k }, r));
+      const scores = {}; rounds.forEach((r, k) => { scores[r.id] = (m.scores && m.scores[k] || []).slice(); });
+      D = { title: m.title || '', subtitle: m.subtitle || '', cur: m.cur || 0, rounds, teams: m.teams, scores, history: [] };
+      sel = typeof m.sel === 'number' ? m.sel : -1;
+      if (m.timer) { TM = Object.assign({ kind: null, left: 0, run: false, done: false }, m.timer); renderTimer(); }
+      w.hidden = true;
+      render();
+      toggleOverview(!!m.ov);
+      const f = m.flash;
+      if (f && f.id !== lastId) {
+        lastId = f.id;
+        if (f.left > 250) { flashMsg(f.text, typeof f.team === 'number' && D.teams[f.team] ? f.team : null, f.kind, f.left); if (typeof f.team === 'number') bump(f.team); }
+      }
+    } });
+  }
   buildTiles(); render();
 })();
 </script>

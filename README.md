@@ -37,6 +37,10 @@ Do one run on the institute Wi-Fi with four phones before the quiz. If the lapto
 
 # Scoreboard for the whole quiz (`scoreboard.html`)
 
+**Quiz plan built in (organisers’ guidelines):** Round 1 – Part 1 to Round 4 – Part 2, then Round 5 – Buzzer round. Two-part questions (Round 1 – Part 1, Round 3 – Part 2): 10 points per sub-question, 5 per sub-question on a pass. All other parts: 10 direct, 5 on a pass. No negative marking. 30 s for a direct question, 5 s for a pass. Everything is editable in the panel; “Restore the quiz plan” puts it back.
+
+**Running a question:** select the team (1–4), press **T** to start the 30 s timer. Correct: **C** (once per sub-question). Wrong or unanswered: **W** passes it to the next team and starts the 5 s timer; if they get it, **S**. Space pauses the timer, X hides it.
+
 Open `scoreboard.html` on the auditorium laptop and click once to go full screen. It runs entirely on the laptop: no phones and no relay are needed, and everything is saved on the laptop, so it survives a refresh.
 
 - **P** opens the quizmaster panel on the left: screen title, rounds (name, marks for Correct / Wrong / Pass / Bonus, order, add, delete), teams (2 to 6) and the scores of the round on screen, which can be typed directly.
@@ -44,3 +48,11 @@ Open `scoreboard.html` on the auditorium laptop and click once to go full screen
 - **← / →** (or PageUp / PageDown on a clicker) change the round on screen.
 - **O**, or the OVERVIEW tab on the right edge, opens the score overview: every team’s marks in every round, with totals and ranks.
 - **Download scores (CSV)** in the panel saves a record that opens in Excel.
+
+## Buzzer round inside the scoreboard
+The scoreboard and the buzzer screen share the laptop’s browser storage. The round ticked **“Scores come from the buzzer screen”** (the Buzzer round, by default) takes its scores from `host.html`: play the buzzer round there, come back to `scoreboard.html`, and the scores are already in. Team names typed on the scoreboard are copied to the buzzer screen (first 4 teams). Use the same laptop and the same browser for both, and press **Reset scores** on the buzzer screen (P panel) after any rehearsal.
+
+## Live screen: display system and MC (`scores.html`)
+`scores.html` mirrors the quiz laptop exactly: the scoreboard, the overview when it is open, the buzzer screen during the buzzer round (including the join codes and who buzzed), switching automatically as the laptop moves between pages. Open it on the computer connected to the projector, click once for full screen and sound; the hall hears the buzzer and marking sounds from that computer. The MC can open the same link on a laptop or tablet. It is view only and needs internet on both ends.
+
+**Part marks:** select the team and press **M** (or *Custom mark* in the panel) for ¼, ½ or ¾ of the correct mark, ½ of the pass mark, or any number you type (7.5, 2.5, −2 …).
