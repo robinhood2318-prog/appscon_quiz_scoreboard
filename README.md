@@ -37,7 +37,7 @@ Do one run on the institute Wi-Fi with four phones before the quiz. If the lapto
 
 # Scoreboard for the whole quiz (`scoreboard.html`)
 
-**Quiz plan built in (organisers’ guidelines):** Round 1 – Part 1 to Round 4 – Part 2, then Round 5 – Buzzer round. Two-part questions (Round 1 – Part 1, Round 3 – Part 2): 10 points per sub-question, 5 per sub-question on a pass. All other parts: 10 direct, 5 on a pass. No negative marking. 30 s for a direct question, 5 s for a pass. Everything is editable in the panel; “Restore the quiz plan” puts it back.
+**Quiz plan built in (organisers’ guidelines):** Round 1 – Part 1 to Round 4 – Part 2, then Round 5 – Buzzer round. Two-part questions (Round 1 – Part 1, Round 3 – Part 2): 10 points per sub-question, 5 per sub-question on a pass. Round 2 – Part 2: four sub-questions, 5 each (20 a question), 2.5 each on a pass. All other parts: 10 direct, 5 on a pass. No negative marking in Rounds 1–4. Buzzer round: +10 correct, −5 wrong, no pass (a wrong answer ends the question; tick “pass to the next team” on the buzzer screen’s panel to change this). 30 s for a direct question, 5 s for a pass. Everything is editable in the panel; “Restore the quiz plan” puts it back.
 
 **Running a question:** select the team (1–4), press **T** to start the 30 s timer. Correct: **C** (once per sub-question). Wrong or unanswered: **W** passes it to the next team and starts the 5 s timer; if they get it, **S**. Space pauses the timer, X hides it.
 

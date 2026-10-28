@@ -143,6 +143,7 @@ body.fs:not(.panel-open) { cursor: none; }
   <h3>Settings</h3>
   <label>Points for a correct answer <input type="number" id="sCorrect"></label>
   <label>Points for a wrong answer <input type="number" id="sWrong"></label>
+  <label>After a wrong answer, pass to the next team in line <input type="checkbox" id="sPass" style="width:18px;height:18px;accent-color:#FFB703"></label>
   <label>Answer time after a buzz (s, 0 = off) <input type="number" id="sAnswer" min="0"></label>
   <label>Round clock (s, 0 = hidden) <input type="number" id="sRound" min="0"></label>
   <label>Tie window, longest wait (ms) <input type="number" id="sTie" min="100" max="1500" step="50"></label>
@@ -150,8 +151,8 @@ body.fs:not(.panel-open) { cursor: none; }
   <dl class="keys">
     <dt>Space</dt><dd>Open buzzers for the next question, or lock them</dd>
     <dt>C</dt><dd>Correct: adds points and locks the buzzers</dd>
-    <dt>W</dt><dd>Wrong: deducts points and passes to the next team in line</dd>
-    <dt>N</dt><dd>Pass to the next team in line, no points</dd>
+    <dt>W</dt><dd>Wrong: deducts points and ends the question (no pass). If “pass to the next team” is ticked, it goes to the next team in line instead</dd>
+    <dt>N</dt><dd>Hand the question to the next team in line, no points (manual override)</dd>
     <dt>1–4</dt><dd>Buzz for a team from this keyboard (if a phone fails)</dd>
     <dt>U</dt><dd>Undo the last score</dd>
     <dt>T / Y</dt><dd>Start or pause the round clock / reset it (only when a round clock is set)</dd>
@@ -174,7 +175,7 @@ body.fs:not(.panel-open) { cursor: none; }
   const $ = s => document.querySelector(s);
   const KEY = 'appscon-quiz-buzzer-v2';
   const DEF = { names: C.teams.map(t => t.name), scores: [0, 0, 0, 0], q: 0,
-                correct: 10, wrong: -5, answerSec: 5, roundSec: 0, tieMs: 400 };
+                correct: 10, wrong: -5, passOn: false, answerSec: 5, roundSec: 0, tieMs: 400 };
   // ?mirror=1: a read-only copy of the quiz laptop's buzzer screen (inside
   // scores.html on the display system). It never talks to the phones.
   const MIRROR = new URLSearchParams(location.search).has('mirror');
@@ -342,7 +343,10 @@ body.fs:not(.panel-open) { cursor: none; }
   function wrong() {
     const i = answering(); if (i < 0) return;
     if (cfg.wrong) addScore(i, cfg.wrong);
-    sWrong(); next();
+    sWrong();
+    // Guidelines: no pass in the buzzer round, so a wrong answer ends the
+    // question. With "pass to the next team" ticked, it goes down the queue.
+    if (cfg.passOn) next(); else lock();
   }
   function next() {
     if (answering() < 0) return;
@@ -532,7 +536,7 @@ body.fs:not(.panel-open) { cursor: none; }
       si.addEventListener('change', () => { cfg.scores[i] = parseInt(si.value, 10) || 0; save(); render(); publishState(); });
       box.appendChild(row);
     });
-    $('#sCorrect').value = cfg.correct; $('#sWrong').value = cfg.wrong;
+    $('#sCorrect').value = cfg.correct; $('#sWrong').value = cfg.wrong; $('#sPass').checked = !!cfg.passOn;
     $('#sAnswer').value = cfg.answerSec; $('#sRound').value = cfg.roundSec; $('#sTie').value = cfg.tieMs;
   }
   const num = (id, key, min, max) => $(id).addEventListener('change', e => {
@@ -542,6 +546,7 @@ body.fs:not(.panel-open) { cursor: none; }
     if (key === 'roundSec' && !clockRun) clockReset();
   });
   num('#sCorrect', 'correct'); num('#sWrong', 'wrong');
+  $('#sPass').addEventListener('change', e => { cfg.passOn = e.target.checked; save(); });
   num('#sAnswer', 'answerSec', 0, 120); num('#sRound', 'roundSec', 0, 3600); num('#sTie', 'tieMs', 100, 1500);
 
   /* Full screen: browsers only allow it after a click or key press, so the page

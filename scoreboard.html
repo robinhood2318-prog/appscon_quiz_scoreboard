@@ -258,13 +258,16 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   //   Time: 30 s for the direct question, 5 s for a passed question.
   function planRounds() {
     const two = { parts: 2 }, one = { parts: 1 };
+    // Round 2 – Part 2: one question with four sub-questions, 5 each (20 a
+    // question), 2.5 each after a pass.
+    const four = { parts: 4, correct: 5, pass: 2.5 };
     return [
       ['Round 1 – Part 1', two], ['Round 1 – Part 2', one],
-      ['Round 2 – Part 1', one], ['Round 2 – Part 2', one],
+      ['Round 2 – Part 1', one], ['Round 2 – Part 2', four],
       ['Round 3 – Part 1', one], ['Round 3 – Part 2', two],
       ['Round 4 – Part 1', one], ['Round 4 – Part 2', one]
-    ].map(([name, o]) => ({ id: uid(), name, correct: 10, wrong: 0, pass: 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false }))
-      .concat([{ id: uid(), name: 'Round 5 – Buzzer round', correct: 10, wrong: 0, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }]);
+    ].map(([name, o]) => ({ id: uid(), name, correct: o.correct || 10, wrong: 0, pass: o.pass || 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false }))
+      .concat([{ id: uid(), name: 'Round 5 – Buzzer round', correct: 10, wrong: -5, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }]);
   }
   function defaults() {
     const rounds = planRounds();
@@ -299,6 +302,13 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     if (typeof r.tDirect !== 'number') r.tDirect = 0;
     if (typeof r.tPass !== 'number') r.tPass = 0;
   });
+  if (!MIRROR && (D.plan || 1) < 2) {
+    // Plan update 2: Round 2 – Part 2 has four sub-questions (5 each, 2.5 on a
+    // pass). Applied only if that round still has the first plan's values.
+    const r = D.rounds.find(x => /^round 2\s*[–-]\s*part 2$/i.test(x.name.trim()));
+    if (r && r.parts === 1 && r.correct === 10 && r.pass === 5) { r.parts = 4; r.correct = 5; r.pass = 2.5; }
+    D.plan = 2;
+  }
   const save = () => {
     if (MIRROR) return;
     D.ts = Date.now();
@@ -354,7 +364,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     b.names = [0, 1, 2, 3].map(t => (D.teams[t] ? D.teams[t].name : 'Team ' + (t + 1)));
     try { localStorage.setItem(BUZZ_KEY, JSON.stringify(b)); } catch (e) {}
   }
-  const buzzMarks = () => { const b = readBuzz() || {}; return { correct: typeof b.correct === 'number' ? b.correct : 10, wrong: typeof b.wrong === 'number' ? b.wrong : -5 }; };
+  const buzzMarks = () => { const b = readBuzz() || {}; return { correct: typeof b.correct === 'number' ? b.correct : 10, wrong: typeof b.wrong === 'number' ? b.wrong : -5, passOn: !!b.passOn }; };
   const r2 = v => Math.round(v * 100) / 100;
   const setSc = (rid, t, v) => { if (!D.scores[rid]) D.scores[rid] = []; D.scores[rid][t] = r2(v); };
   const total = t => r2(D.rounds.reduce((s, r) => s + sc(r.id, t), 0));
@@ -546,6 +556,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     (bm ? [['Correct', bm.correct], ['Wrong', bm.wrong]] : [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.pass], ['Bonus', r.bonus]]).forEach(([lab, v]) => {
       if (v) pill(lab, fmtPts(v) + each);
     });
+    if (bm && !bm.passOn) pill('No pass', '');
     if (!bm && (r.tDirect || r.tPass)) pill('Time', [r.tDirect ? r.tDirect + ' s' : '', r.tPass ? 'pass ' + r.tPass + ' s' : ''].filter(Boolean).join(', '));
 
     const rk = ranks(), show = anyScore();
@@ -651,7 +662,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       [['.pc', 'correct'], ['.pw', 'wrong'], ['.ps', 'pass'], ['.pb', 'bonus']].forEach(([cls, key]) => {
         const inp = c.querySelector(cls); inp.value = r[key];
         if (r.buzzer) { inp.disabled = true; inp.value = key === 'correct' ? buzzMarks().correct : key === 'wrong' ? buzzMarks().wrong : 0; inp.title = 'Set these on the buzzer screen (P panel there)'; }
-        inp.addEventListener('change', () => { r[key] = parseInt(inp.value, 10) || 0; inp.value = r[key]; save(); render(); });
+        inp.step = 'any';
+        inp.addEventListener('change', () => { r[key] = r2(parseFloat(inp.value) || 0); inp.value = r[key]; save(); render(); });
       });
       [['.pp', 'parts', 1], ['.pt', 'tDirect', 0], ['.pq', 'tPass', 0]].forEach(([cls, key, min]) => {
         const inp = c.querySelector(cls); inp.value = r[key];
