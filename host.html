@@ -243,7 +243,7 @@ body.fs:not(.panel-open) { cursor: none; }
   const KEY = 'appscon-quiz-buzzer-v2';
   const DEF = { names: C.teams.map(t => t.name), scores: [0, 0, 0, 0], q: 0,
                 correct: 10, wrong: -5, passOn: false, answerSec: 5, roundSec: 0, tieMs: 400,
-                introLabel: 'Round 5', introName: 'Buzzer round' };
+                introLabel: 'Round 5', introName: 'Rapid Fire' };
   // ?mirror=1: a read-only copy of the quiz laptop's buzzer screen (inside
   // scores.html on the display system). It never talks to the phones.
   const MIRROR = new URLSearchParams(location.search).has('mirror');
@@ -253,6 +253,8 @@ body.fs:not(.panel-open) { cursor: none; }
     try { cfg = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
     catch (e) { cfg = Object.assign({}, DEF); }
   }
+  // the buzzer round is called Rapid Fire (once, if still the old default)
+  if (!MIRROR && !cfg.rf) { if (!cfg.introName || cfg.introName === 'Buzzer round') cfg.introName = 'Rapid Fire'; cfg.rf = 1; try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} }
   // numbered default names become letters (Team 1 → Team A)
   cfg.names = (cfg.names || []).map((n, i) => (n === 'Team ' + (i + 1) ? 'Team ' + String.fromCharCode(65 + i) : n));
   const save = () => { if (MIRROR) return; try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };

@@ -329,14 +329,16 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     // Round 2 – Part 2: one question with four sub-questions, 5 each (20 a
     // question), 2.5 each after a pass.
     const four = { parts: 4, correct: 5, pass: 2.5, passOn: false };   // Round 2 – Part 2: no pass
-    const part = (label, o) => ({ id: uid(), label, name: '', correct: o.correct || 10, wrong: 0, pass: o.pass || 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false,
+    // Round 3 – Part 2: 5 a question, 2.5 on a pass.
+    const fives = { parts: 1, correct: 5, pass: 2.5 };
+    const part = (label, o, name) => ({ id: uid(), label, name: name || '', correct: o.correct || 10, wrong: 0, pass: o.pass || 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false,
       passOn: o.passOn !== false, dir: 'fwd' });
-    const title = n => ({ id: uid(), title: true, label: 'Round ' + n, name: '' });
+    const title = (n, name) => ({ id: uid(), title: true, label: 'Round ' + n, name: name || '' });
     return [
-      title(1), part('Part 1', two), part('Part 2', one),
-      title(2), part('Part 1', one), part('Part 2', four),
-      title(3), part('Part 1', one), part('Part 2', two),
-      title(4), part('Part 1', one), part('Part 2', one),
+      title(1, 'Timeline'), part('Part 1', two, 'Days'), part('Part 2', one, 'Regulatory Affairs'),
+      title(2, 'Rules and Algorithms'), part('Part 1', one, 'Rules'), part('Part 2', four, 'Therapeutic Algorithms'),
+      title(3, 'Visual'), part('Part 1', one, 'Trial Designs'), part('Part 2', fives, 'Plots'),
+      title(4, 'Brevia and Trivia'), part('Part 1', one, 'Brevia'), part('Part 2', one, 'Trivia'),
       { id: uid(), label: 'Round 5', name: '', correct: 10, wrong: -5, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }
     ];
   }
@@ -428,6 +430,26 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   });
   D.teams.forEach((t, i) => { if (t.name === 'Team ' + (i + 1)) t.name = 'Team ' + L(i); });
   if (!MIRROR && (D.orders || 0) < 1) { alternateOrder(D.rounds, false); D.orders = 1; }   // new default orders, once
+  if (!MIRROR && (D.names || 0) < 1) {
+    // Round and part names from the organisers, and Round 3 – Part 2 marks.
+    // Only fills names that are still empty and marks still at the old values.
+    const N = { 'Round 1': ['Timeline', 'Days', 'Regulatory Affairs'], 'Round 2': ['Rules and Algorithms', 'Rules', 'Therapeutic Algorithms'],
+                'Round 3': ['Visual', 'Trial Designs', 'Plots'], 'Round 4': ['Brevia and Trivia', 'Brevia', 'Trivia'] };
+    let cur = null;
+    D.rounds.forEach(r => {
+      if (r.title) { cur = N[(r.label || '').trim()] || null; if (cur && !r.name) r.name = cur[0]; return; }
+      if (!cur || r.buzzer) return;
+      const m = /^part\s*([12])$/i.exec((r.label || '').trim());
+      if (m && !r.name) r.name = cur[+m[1]];
+      if (cur[0] === 'Visual' && m && m[1] === '2' && r.correct === 10 && r.pass === 5) { r.correct = 5; r.pass = 2.5; r.parts = 1; }
+    });
+    D.names = 1;
+  }
+  if (!MIRROR && (D.names || 0) < 2) {
+    // spelling: Trevia → Trivia (only where the old default name is still used)
+    D.rounds.forEach(r => { if (r.name === 'Trevia') r.name = 'Trivia'; if (r.name === 'Brevia and Trevia') r.name = 'Brevia and Trivia'; });
+    D.names = 2;
+  }
   alternateOrder(D.rounds, true);
   const save = () => {
     if (MIRROR) return;
@@ -497,7 +519,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     const b = readBuzz() || {};
     b.names = [0, 1, 2, 3].map(t => (D.teams[t] ? D.teams[t].name : 'Team ' + (t + 1)));
     // the buzzer screen's title page shows the buzzer round's number and name
-    if (force || typeof b.introLabel !== 'string') { b.introLabel = br.label || 'Round 5'; b.introName = br.name || 'Buzzer round'; }
+    if (force || typeof b.introLabel !== 'string') { b.introLabel = br.label || 'Round 5'; b.introName = br.name || (force ? 'Rapid Fire' : (b.introName || 'Rapid Fire')); }
     try { localStorage.setItem(BUZZ_KEY, JSON.stringify(b)); } catch (e) {}
   }
   let mirrorBM = null;
