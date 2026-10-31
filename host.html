@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
 <style>
 :root {
+  --u: 1vw;   /* text size unit; bigger on tall (portrait) screens, see the end */
   --bg: #12162B; --surface: #1C2242; --line: #2B3260;
   --text: #F2F4FF; --muted: #8D95C2; --alert: #FF6B6B;
   font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
@@ -20,29 +21,29 @@ body.fs:not(.panel-open) { cursor: none; }
 
 .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; padding: 2.4vh 3vw 0; }
 .event { text-align: center; }
-.ev1 { display: block; font-weight: 800; font-size: 2.8vw; line-height: 1.15; }
-.ev2 { display: block; color: var(--muted); font-size: 2.1vw; font-weight: 600; margin-top: .4vh; }
+.ev1 { display: block; font-weight: 800; font-size: calc(var(--u) * 2.8); line-height: 1.15; }
+.ev2 { display: block; color: var(--muted); font-size: calc(var(--u) * 2.1); font-weight: 600; margin-top: .4vh; }
 .qno { justify-self: start; }
 .clock { justify-self: end; }
-.qno { font-size: 1.9vw; color: var(--muted); }
-.clock { font-size: 5vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.qno { font-size: calc(var(--u) * 1.9); color: var(--muted); }
+.clock { font-size: calc(var(--u) * 5); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
 .clock.idle { color: var(--muted); }
 .clock.low { color: var(--alert); }
 .clock[hidden] { display: block; visibility: hidden; }
 
 .stage { display: grid; place-items: center; }
-.status { font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; text-align: center; padding: 0 3vw; }
+.status { font-size: calc(var(--u) * 9); font-weight: 800; letter-spacing: -0.03em; line-height: 1; text-align: center; padding: 0 3vw; }
 .status[data-phase="locked"] { color: var(--muted); }
 .status[data-phase="flash"] { color: var(--c); }
 
 .teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.4vw; padding: 0 3vw 3.5vh; }
 .tile { position: relative; background: var(--surface); border-radius: 14px; border-top: 1.2vh solid var(--c); padding: 2vh 1.4vw 1.8vh; min-width: 0; }
-.tile .nm { font-size: 2vw; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4vw; }
-.tile .sc { font-size: 6.4vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
-.tile .pr { font-size: 1.1vw; color: var(--muted); display: flex; align-items: center; gap: .5vw; }
+.tile .nm { font-size: calc(var(--u) * 2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4vw; }
+.tile .sc { font-size: calc(var(--u) * 6.4); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.tile .pr { font-size: calc(var(--u) * 1.1); color: var(--muted); display: flex; align-items: center; gap: .5vw; }
 .tile .dot { width: .8vw; height: .8vw; border-radius: 50%; background: #4A5078; flex: none; }
 .tile .pr.on .dot { background: #2DC653; }
-.tile .badge { position: absolute; top: 1.8vh; right: 1.2vw; background: var(--c); color: var(--ink); font-weight: 800; border-radius: 999px; padding: .3vh .8vw; font-size: 1.4vw; }
+.tile .badge { position: absolute; top: 1.8vh; right: 1.2vw; background: var(--c); color: var(--ink); font-weight: 800; border-radius: 999px; padding: .3vh .8vw; font-size: calc(var(--u) * 1.4); }
 .tile.turn { box-shadow: 0 0 0 4px var(--c); }
 .tile.out { opacity: .45; }
 
@@ -52,27 +53,27 @@ body.fs:not(.panel-open) { cursor: none; }
 .flood[hidden] { display: none; }
 .flood.pop { animation: pop .16s ease-out; }
 @keyframes pop { from { transform: scale(1.04); opacity: .6; } to { transform: none; opacity: 1; } }
-.flood-sub { font-size: 2.6vw; font-weight: 600; opacity: .8; }
-.flood-name { font-size: 11vw; font-weight: 800; line-height: .95; letter-spacing: -0.035em; padding: 0 4vw; overflow-wrap: anywhere; }
-.answer { width: 11vw; height: 11vw; border-radius: 50%; border: .6vw solid currentColor; display: grid; place-items: center;
-  font-size: 5.6vw; font-weight: 800; font-variant-numeric: tabular-nums; }
+.flood-sub { font-size: calc(var(--u) * 2.6); font-weight: 600; opacity: .8; }
+.flood-name { font-size: calc(var(--u) * 11); font-weight: 800; line-height: .95; letter-spacing: -0.035em; padding: 0 4vw; overflow-wrap: anywhere; }
+.answer { width: calc(var(--u) * 11); height: calc(var(--u) * 11); border-radius: 50%; border: .6vw solid currentColor; display: grid; place-items: center;
+  font-size: calc(var(--u) * 5.6); font-weight: 800; font-variant-numeric: tabular-nums; }
 .answer:empty { display: none; }
-.answer.up { font-size: 2.6vw; }
+.answer.up { font-size: calc(var(--u) * 2.6); }
 .queue { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 1vw; padding: 0 4vw; margin: 1vh 0 0; }
-.queue li { background: rgba(0,0,0,.16); padding: .8vh 1.3vw; border-radius: 999px; font-size: 1.6vw; font-weight: 600; }
+.queue li { background: rgba(0,0,0,.16); padding: .8vh 1.3vw; border-radius: 999px; font-size: calc(var(--u) * 1.6); font-weight: 600; }
 .queue li.cur { background: var(--ink); color: var(--c); }
 .queue li.out { text-decoration: line-through; opacity: .6; }
 
 .join { position: fixed; inset: 0; z-index: 8; background: rgba(18,22,43,.97); display: flex; flex-direction: column; justify-content: center; gap: 4vh; padding: 4vh 4vw; }
 .join[hidden] { display: none; }
-.join h2 { margin: 0; font-size: 3vw; font-weight: 800; text-align: center; }
-.join h2 span { display: block; font-size: 1.5vw; font-weight: 400; color: var(--muted); margin-top: 1vh; }
+.join h2 { margin: 0; font-size: calc(var(--u) * 3); font-weight: 800; text-align: center; }
+.join h2 span { display: block; font-size: calc(var(--u) * 1.5); font-weight: 400; color: var(--muted); margin-top: 1vh; }
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2vw; }
 .card { background: var(--surface); border-radius: 14px; border-top: 1.2vh solid var(--c); padding: 2.4vh 1.4vw; text-align: center; min-width: 0; }
-.card .nm { font-size: 2vw; font-weight: 800; margin-bottom: 2vh; overflow-wrap: anywhere; }
+.card .nm { font-size: calc(var(--u) * 2); font-weight: 800; margin-bottom: 2vh; overflow-wrap: anywhere; }
 .card .qr { background: #fff; padding: 1vw; border-radius: 10px; display: inline-block; }
 .card .qr img, .card .qr canvas { display: block; width: 15vw !important; height: 15vw !important; }
-.card .url { font-size: .9vw; color: var(--muted); margin-top: 1.4vh; overflow-wrap: anywhere; }
+.card .url { font-size: calc(var(--u) * .9); color: var(--muted); margin-top: 1.4vh; overflow-wrap: anywhere; }
 
 .panel { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 92vw; z-index: 10; overflow-y: auto;
   background: var(--surface); border-left: 1px solid var(--line); padding: 22px 22px 40px; font-size: 15px; cursor: auto; }
@@ -99,17 +100,60 @@ body.fs:not(.panel-open) { cursor: none; }
 .conn.bad { color: var(--alert); font-weight: 600; }
 .conn.ok:not(.show) { display: none; }
 
+.custom { position: fixed; inset: 0; z-index: 12; background: rgba(10,12,26,.6); display: grid; place-items: center; cursor: auto; }
+.custom[hidden] { display: none; }
+.cmbox { width: min(540px, 92vw); background: var(--surface); border: 1px solid var(--line); border-top: 8px solid var(--c, var(--line)); border-radius: 14px; padding: 22px; font-size: 15px; }
+.cmbox h2 { margin: 0 0 4px; font-size: 22px; }
+.cmnote { margin: 0 0 14px; color: var(--muted); }
+.cmteams, .cmquick { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.cmteams button, .cmquick button, .cmbtns button { font: inherit; font-weight: 700; background: var(--line); color: var(--text); border: 0; border-radius: 10px; padding: 12px 8px; cursor: pointer; }
+.cmteams button { border-top: 5px solid var(--c); }
+.cmteams button.on { background: var(--c); color: var(--ink); }
+.cmquick button small { display: block; font-weight: 600; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.cmown { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.cmown input { display: block; width: 100%; margin-top: 6px; font: inherit; font-size: 20px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-align: right; box-sizing: border-box; }
+.cmbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.cmbtns .primary { background: var(--text); color: var(--bg); }
 .intro { position: fixed; top: 16vh; left: 0; right: 0; bottom: 0; z-index: 4; background: var(--bg); display: grid; place-items: center; text-align: center; padding: 0 5vw; }
 .intro[hidden] { display: none; }
-.ik { font-size: 2.4vw; font-weight: 600; color: var(--muted); }
-.ib { font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-top: 1.4vh; overflow-wrap: anywhere; }
-.ih { margin-top: 3vh; font-size: 1.6vw; color: var(--muted); }
+.ik { font-size: calc(var(--u) * 2.4); font-weight: 600; color: var(--muted); }
+.ib { font-size: calc(var(--u) * 9); font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-top: 1.4vh; overflow-wrap: anywhere; }
+.ih { margin-top: 3vh; font-size: calc(var(--u) * 1.6); color: var(--muted); }
 .ih:empty { display: none; }
 .start { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; place-items: center; text-align: center; cursor: pointer; }
 .start[hidden] { display: none; }
-.start b { display: block; font-size: 4vw; font-weight: 800; }
-.start span { display: block; margin-top: 1.5vh; font-size: 1.6vw; color: var(--muted); }
+.start b { display: block; font-size: calc(var(--u) * 4); font-weight: 800; }
+.start span { display: block; margin-top: 1.5vh; font-size: calc(var(--u) * 1.6); color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .flood.pop { animation: none; } }
+
+/* ---------- tall or narrow screens ---------- */
+@media (max-aspect-ratio: 1/1) {
+  :root { --u: min(1.6vh, 2.2vw); }
+  .bar { grid-template-columns: 1fr; justify-items: center; gap: 1vh; padding: 2vh 4vw 0; }
+  .qno { display: none; }
+  .clock { justify-self: center; }
+  .clock[hidden] { display: none; }
+  .teams { grid-template-columns: repeat(2, 1fr); gap: 2.4vw; padding: 0 3vw 2.4vh; }
+  .tile { padding: 1.4vh 3vw 1.4vh; border-top-width: .9vh; }
+  .tile .nm { padding-right: calc(var(--u) * 5); }
+  .tile .badge { top: 1.2vh; right: 2.4vw; }
+  .tile .dot { width: calc(var(--u) * .8); height: calc(var(--u) * .8); }
+  .status, .flood-name, .ib { overflow-wrap: anywhere; }
+  .queue li { padding: .8vh 2.4vw; }
+  .answer { border-width: calc(var(--u) * .6); }
+  .cards { grid-template-columns: repeat(2, 1fr); gap: 3vw; }
+  .card .qr img, .card .qr canvas { width: 30vw !important; height: 30vw !important; }
+  .card .url { display: none; }
+  .intro { top: 12vh; }
+  .ev1 { font-size: calc(var(--u) * 2.2); }
+  .ev2 { font-size: calc(var(--u) * 1.6); }
+  .status { font-size: calc(var(--u) * 6.4); }
+  .ib { font-size: calc(var(--u) * 7); }
+  .flood-name { font-size: calc(var(--u) * 8); }
+  .tile .sc { font-size: calc(var(--u) * 5); }
+  .tile .nm { font-size: calc(var(--u) * 1.7); }
+  .tile .pr { font-size: calc(var(--u) * 1); }
+}
 </style>
 </head>
 <body>
@@ -144,6 +188,7 @@ body.fs:not(.panel-open) { cursor: none; }
   <h3>Teams and scores</h3>
   <div id="teamRows"></div>
   <div class="btns">
+    <button id="bManual">Manual mark (M)</button>
     <button id="bUndo">Undo last score</button>
     <button id="bReset">Reset scores</button>
   </div>
@@ -165,6 +210,7 @@ body.fs:not(.panel-open) { cursor: none; }
     <dt>W</dt><dd>Wrong: deducts points and ends the question (no pass). If “pass to the next team” is ticked, it goes to the next team in line instead</dd>
     <dt>N</dt><dd>Hand the question to the next team in line, no points (manual override)</dd>
     <dt>1–4</dt><dd>Buzz for a team from this keyboard (1 = A, 2 = B, 3 = C, 4 = D), if a phone fails</dd>
+    <dt>M</dt><dd>Manual mark: choose a team and give +10, −5, +5 or any number, with no buzz needed (works on the title page too)</dd>
     <dt>U</dt><dd>Undo the last score</dd>
     <dt>T / Y</dt><dd>Start or pause the round clock / reset it (only when a round clock is set)</dd>
     <dt>J</dt><dd>Show or hide the join codes</dd>
@@ -173,6 +219,16 @@ body.fs:not(.panel-open) { cursor: none; }
   </dl>
 </aside>
 <div class="conn" id="conn">Connecting…</div>
+<div class="custom" id="custom" hidden role="dialog" aria-labelledby="cmTitle">
+  <div class="cmbox">
+    <h2 id="cmTitle">Manual mark</h2>
+    <p class="cmnote">Give marks by hand, without a buzz. Choose the team, then the mark.</p>
+    <div class="cmteams" id="cmTeams"></div>
+    <div class="cmquick" id="cmQuick"></div>
+    <label class="cmown">Or type any mark (decimals and minus allowed)<input id="cmInput" type="number" step="any" inputmode="decimal"></label>
+    <div class="cmbtns"><button id="cmCancel">Cancel (Esc)</button><button class="primary" id="cmApply">Give mark (Enter)</button></div>
+  </div>
+</div>
 <div class="start" id="start"><div><b>Click anywhere to start</b><span>The quiz screen opens in full screen</span></div></div>
 
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -340,9 +396,15 @@ body.fs:not(.panel-open) { cursor: none; }
     el.hidden = !S.intro;
     $('#introKick').textContent = nm ? lab : '';
     $('#introBig').textContent = nm || lab || 'Buzzer round';
-    $('#introBig').style.fontSize = (nm || lab).length > 22 ? '6.4vw' : '';
+    fitBig($('#introBig'), nm || lab || 'Buzzer round');
     $('.ih').textContent = '';
     $('#qno').style.visibility = S.intro ? 'hidden' : '';
+  }
+  // keep the longest word of big text within the screen width
+  function fitBig(el, text) {
+    el.style.fontSize = '';
+    const longest = Math.max(1, ...String(text).split(/\s+/).map(w => w.length));
+    el.style.fontSize = 'min(' + getComputedStyle(el).fontSize + ', ' + (150 / longest).toFixed(2) + 'vw)';
   }
   function setIntro(on) { S.intro = on; renderIntro(); publishState(); }
 
@@ -383,6 +445,56 @@ body.fs:not(.panel-open) { cursor: none; }
     if (S.cur < S.order.length) { sBuzz(S.order[S.cur].team); startAnswer(); }
     render(); publishState();
   }
+  /* ---------- manual mark (M): any team, any mark, no buzz needed ---------- */
+  let cmTeam = -1;
+  const r2 = v => Math.round(v * 100) / 100;
+  function openManual() {
+    cmTeam = answering() >= 0 ? answering() : -1;
+    const tb = $('#cmTeams'); tb.textContent = '';
+    C.teams.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.textContent = name(i); b.style.setProperty('--c', t.color); b.style.setProperty('--ink', inkFor(t.color));
+      b.addEventListener('click', () => { cmTeam = i; paintTeams(); });
+      tb.appendChild(b);
+    });
+    const q = $('#cmQuick'); q.textContent = '';
+    [[cfg.correct, 'correct'], [cfg.wrong, 'wrong'], [r2(cfg.correct / 2), '½ of correct']].forEach(([v, lab]) => {
+      if (!v) return;
+      const b = document.createElement('button');
+      b.innerHTML = '<span></span><small></small>';
+      b.querySelector('span').textContent = (v > 0 ? '+' : '\u2212') + Math.abs(v); b.querySelector('small').textContent = lab;
+      b.addEventListener('click', () => giveManual(v));
+      q.appendChild(b);
+    });
+    $('#cmInput').value = '';
+    paintTeams();
+    $('#custom').hidden = false;
+    setTimeout(() => $('#cmInput').focus(), 0);
+  }
+  function paintTeams() {
+    [...$('#cmTeams').children].forEach((b, i) => b.classList.toggle('on', i === cmTeam));
+    $('.cmbox').style.setProperty('--c', cmTeam >= 0 ? C.teams[cmTeam].color : 'var(--line)');
+    $('#cmTitle').textContent = cmTeam >= 0 ? 'Manual mark for ' + name(cmTeam) : 'Manual mark: choose a team';
+  }
+  function closeManual() { $('#custom').hidden = true; if (document.activeElement) document.activeElement.blur(); }
+  function giveManual(v) {
+    const pts = r2(parseFloat(v));
+    if (cmTeam < 0) { $('#cmTitle').textContent = 'Choose a team first'; return; }
+    closeManual();
+    if (!pts) return;
+    addScore(cmTeam, pts);
+    pts > 0 ? sCorrect() : sWrong();
+    render(); renderPanel(); publishState();
+  }
+  $('#cmCancel').addEventListener('click', closeManual);
+  $('#cmApply').addEventListener('click', () => giveManual($('#cmInput').value));
+  $('#cmInput').addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') giveManual($('#cmInput').value);
+    else if (e.key === 'Escape') closeManual();
+    else if (/^[1-4]$/.test(e.key) && e.altKey) { cmTeam = +e.key - 1; paintTeams(); e.preventDefault(); }
+  });
+
   function undo() {
     const h = history.pop(); if (!h) return;
     cfg.scores[h.i] -= h.pts; save();
@@ -483,7 +595,7 @@ body.fs:not(.panel-open) { cursor: none; }
       const key = a + '-' + S.cur;
       if (fd.dataset.key !== key) { fd.dataset.key = key; fd.classList.remove('pop'); void fd.offsetWidth; fd.classList.add('pop'); }
       $('#floodSub').textContent = S.cur === 0 ? 'First to buzz' : 'Next in line';
-      $('#floodName').textContent = name(a);
+      $('#floodName').textContent = name(a); fitBig($('#floodName'), name(a));
       const q = $('#queue'); q.textContent = '';
       if (S.order.length > 1) S.order.forEach((o, k) => {
         const li = document.createElement('li');
@@ -562,7 +674,8 @@ body.fs:not(.panel-open) { cursor: none; }
       const ni = row.querySelector('.nmi'), si = row.querySelector('.score');
       ni.value = cfg.names[i] || ''; si.value = cfg.scores[i];
       ni.addEventListener('input', () => { cfg.names[i] = ni.value; save(); render(); publishState(); });
-      si.addEventListener('change', () => { cfg.scores[i] = parseInt(si.value, 10) || 0; save(); render(); publishState(); });
+      si.step = 'any';
+      si.addEventListener('change', () => { cfg.scores[i] = Math.round((parseFloat(si.value) || 0) * 100) / 100; save(); render(); publishState(); });
       box.appendChild(row);
     });
     $('#sCorrect').value = cfg.correct; $('#sWrong').value = cfg.wrong; $('#sPass').checked = !!cfg.passOn;
@@ -597,6 +710,7 @@ body.fs:not(.panel-open) { cursor: none; }
   $('#bJoin').addEventListener('click', () => toggleJoin());
   $('#bFs').addEventListener('click', fullscreen);
   $('#bUndo').addEventListener('click', undo);
+  $('#bManual').addEventListener('click', openManual);
   $('#bReset').addEventListener('click', () => {
     if (!confirm('Set all four scores to 0 and restart question numbers?')) return;
     cfg.scores = [0, 0, 0, 0]; cfg.q = 0; history.length = 0; save();
@@ -611,6 +725,7 @@ body.fs:not(.panel-open) { cursor: none; }
   document.addEventListener('keydown', e => {
     if (MIRROR || gateOpen()) return;
     ac();
+    if (!$('#custom').hidden) { if (e.key === 'Escape') closeManual(); return; }
     if (e.target && e.target.matches && e.target.matches('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
     if (keepFs && e.key !== 'Escape' && e.key.toLowerCase() !== 'f') { $('#start').hidden = true; enterFs(); }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -618,6 +733,8 @@ body.fs:not(.panel-open) { cursor: none; }
     if (S.intro) {
       if (k === ' ' || k === 'arrowright' || k === 'pagedown') { e.preventDefault(); setIntro(false); }
       else if (k === 'j') toggleJoin();
+      else if (k === 'm') { e.preventDefault(); openManual(); }
+      else if (k === 'u') undo();
       else if (k === 'p') togglePanel();
       else if (k === 'f') fullscreen();
       else if (k === 'escape') { toggleJoin(false); togglePanel(false); }
@@ -630,6 +747,7 @@ body.fs:not(.panel-open) { cursor: none; }
     else if (k === 'w') wrong();
     else if (k === 'n') next();
     else if (k === 'u') undo();
+    else if (k === 'm') { e.preventDefault(); openManual(); }
     else if (/^[1-4]$/.test(k)) onBuzz(+k - 1, Date.now());
     else if (k === 't') clockToggle();
     else if (k === 'y') clockReset();
@@ -656,7 +774,7 @@ body.fs:not(.panel-open) { cursor: none; }
       if (topic !== 'state' || !m) return;
       cfg.q = m.q || 0;
       if (Array.isArray(m.teams)) cfg.names = m.teams.map(t => t.name);
-      if (Array.isArray(m.scores)) cfg.scores = [0, 1, 2, 3].map(i => parseInt(m.scores[i], 10) || 0);
+      if (Array.isArray(m.scores)) cfg.scores = [0, 1, 2, 3].map(i => parseFloat(m.scores[i]) || 0);
       S.phase = m.phase === 'open' ? 'open' : 'locked';
       S.order = (m.order || []).map(o => ({ team: o.team - 1, t: o.gap || 0 }));
       S.cur = m.cur || 0;
