@@ -1,4 +1,5 @@
 // Thin wrapper around MQTT.js (same broker as the e-Souvenir unveil).
+// Also safe offline: without MQTT.js loaded it returns a stand-in that sends nothing.
 (function () {
   const C = window.QUIZ;
   const T = s => C.topic + '/' + s;
@@ -8,6 +9,12 @@
     const o = { clientId: cid, clean: true, keepalive: 15, reconnectPeriod: 1000, connectTimeout: 8000 };
     if (opts.will) {
       o.will = { topic: T(opts.will.topic), payload: JSON.stringify(opts.will.payload), qos: 1, retain: true };
+    }
+    if (!window.mqtt) {
+      // No internet when the page loaded (e.g. the offline copy): run without
+      // the relay instead of stopping the page.
+      setTimeout(() => opts.onStatus && opts.onStatus('offline'), 0);
+      return { client: { connected: false }, cid, send: () => false };
     }
     const client = mqtt.connect(C.broker, o);
     const status = s => opts.onStatus && opts.onStatus(s);

@@ -39,6 +39,10 @@ Do one run on the institute Wi-Fi with four phones before the quiz. If the lapto
 
 **Quiz plan built in (organisers’ guidelines):** Round 1 – Part 1 to Round 4 – Part 2, then Round 5 – Buzzer round. Two-part questions (Round 1 – Part 1, Round 3 – Part 2): 10 points per sub-question, 5 per sub-question on a pass. Round 2 – Part 2: four sub-questions, 5 each (20 a question), 2.5 each on a pass. All other parts: 10 direct, 5 on a pass. No negative marking in Rounds 1–4. Buzzer round: +10 correct, −5 wrong, no pass (a wrong answer ends the question; tick “pass to the next team” on the buzzer screen’s panel to change this). 30 s for a direct question, 5 s for a pass. Everything is editable in the panel; “Restore the quiz plan” puts it back.
 
+**Running order with title pages:** each round opens with a title page (“Round 1” and the round’s name), then its parts (“Part 1”, “Part 2”), each with its own name. Press **→** to step through: Round 1 → Part 1 → Part 2 → Round 2 → … The buzzer round has no title page on the scoreboard; the buzzer screen opens on its own title page (Round 5 and its name), and → or Space goes to the buzzers. Names are typed in the panel (P): title-page cards for round names, part cards for part names; the buzzer round’s card sets the buzzer screen’s title page.
+
+**Pass on/off and pass order (per part, in the panel):** Round 2 – Part 2 has no pass; all other parts pass on a wrong answer. Pass order alternates part by part: Round 1 – Part 1 forward (1→2→3→4), Round 1 – Part 2 backward (4→3→2→1), Round 2 – Part 1 forward, and so on. When a pass comes back round to the team that was asked first, the question ends.
+
 **Running a question:** select the team (1–4), press **T** to start the 30 s timer. Correct: **C** (once per sub-question). Wrong or unanswered: **W** passes it to the next team and starts the 5 s timer; if they get it, **S**. Space pauses the timer, X hides it.
 
 Open `scoreboard.html` on the auditorium laptop and click once to go full screen. It runs entirely on the laptop: no phones and no relay are needed, and everything is saved on the laptop, so it survives a refresh.
@@ -56,3 +60,10 @@ The scoreboard and the buzzer screen share the laptop’s browser storage. The r
 `scores.html` mirrors the quiz laptop exactly: the scoreboard, the overview when it is open, the buzzer screen during the buzzer round (including the join codes and who buzzed), switching automatically as the laptop moves between pages. Open it on the computer connected to the projector, click once for full screen and sound; the hall hears the buzzer and marking sounds from that computer. The MC can open the same link on a laptop or tablet. It is view only and needs internet on both ends.
 
 **Part marks:** select the team and press **M** (or *Custom mark* in the panel) for ¼, ½ or ¾ of the correct mark, ½ of the pass mark, or any number you type (7.5, 2.5, −2 …).
+
+## If the internet fails
+- **Already open pages keep working.** The scoreboard runs on the laptop; don’t refresh it. Only the display mirror, the MC’s screen and the phone buzzers need internet.
+- **Display:** connect the quiz laptop to the projector with an HDMI cable; the laptop screen is the scoreboard (the P panel stays hidden unless opened).
+- **Offline copy:** unzip these files into a folder on the laptop before the event and double-click `scoreboard.html`. Unlock it once with the code, then **Load backup** (panel → Backup). The buzzer screen also opens offline; phones can’t connect, so press 1–4 for the team that buzzed first.
+- **Backups:** panel → **Download backup** after each round. It holds every round, mark, team and score, including the buzzer round, and loads into the online page or the offline copy.
+- **Mobile hotspot:** if only the venue Wi-Fi fails, a phone hotspot for the laptop and the display system keeps everything online.

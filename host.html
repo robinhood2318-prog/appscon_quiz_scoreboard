@@ -99,6 +99,12 @@ body.fs:not(.panel-open) { cursor: none; }
 .conn.bad { color: var(--alert); font-weight: 600; }
 .conn.ok:not(.show) { display: none; }
 
+.intro { position: fixed; top: 16vh; left: 0; right: 0; bottom: 0; z-index: 4; background: var(--bg); display: grid; place-items: center; text-align: center; padding: 0 5vw; }
+.intro[hidden] { display: none; }
+.ik { font-size: 2.4vw; font-weight: 600; color: var(--muted); }
+.ib { font-size: 9vw; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-top: 1.4vh; overflow-wrap: anywhere; }
+.ih { margin-top: 3vh; font-size: 1.6vw; color: var(--muted); }
+.ih:empty { display: none; }
 .start { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; place-items: center; text-align: center; cursor: pointer; }
 .start[hidden] { display: none; }
 .start b { display: block; font-size: 4vw; font-weight: 800; }
@@ -113,6 +119,7 @@ body.fs:not(.panel-open) { cursor: none; }
   <div class="clock idle" id="clock">1:00</div>
 </header>
 <main class="stage"><div class="status" id="status" data-phase="locked">Get ready</div></main>
+<div class="intro" id="intro"><div><div class="ik" id="introKick"></div><div class="ib" id="introBig"></div><div class="ih">Buzzer round</div></div></div>
 <section class="teams" id="teams" aria-label="Scores"></section>
 
 <div class="flood" id="flood" hidden aria-live="assertive">
@@ -140,6 +147,9 @@ body.fs:not(.panel-open) { cursor: none; }
     <button id="bUndo">Undo last score</button>
     <button id="bReset">Reset scores</button>
   </div>
+  <h3>Title page</h3>
+  <label>Round number <input id="sIntroLabel" style="width:170px;text-align:left"></label>
+  <label>Round name <input id="sIntroName" style="width:170px;text-align:left"></label>
   <h3>Settings</h3>
   <label>Points for a correct answer <input type="number" id="sCorrect"></label>
   <label>Points for a wrong answer <input type="number" id="sWrong"></label>
@@ -149,7 +159,8 @@ body.fs:not(.panel-open) { cursor: none; }
   <label>Tie window, longest wait (ms) <input type="number" id="sTie" min="100" max="1500" step="50"></label>
   <h3>Keys</h3>
   <dl class="keys">
-    <dt>Space</dt><dd>Open buzzers for the next question, or lock them</dd>
+    <dt>→ / ←</dt><dd>Leave the title page for the buzzers / back to the title page (buzzers locked)</dd>
+    <dt>Space</dt><dd>Open buzzers for the next question, or lock them (on the title page: go to the buzzers)</dd>
     <dt>C</dt><dd>Correct: adds points and locks the buzzers</dd>
     <dt>W</dt><dd>Wrong: deducts points and ends the question (no pass). If “pass to the next team” is ticked, it goes to the next team in line instead</dd>
     <dt>N</dt><dd>Hand the question to the next team in line, no points (manual override)</dd>
@@ -175,7 +186,8 @@ body.fs:not(.panel-open) { cursor: none; }
   const $ = s => document.querySelector(s);
   const KEY = 'appscon-quiz-buzzer-v2';
   const DEF = { names: C.teams.map(t => t.name), scores: [0, 0, 0, 0], q: 0,
-                correct: 10, wrong: -5, passOn: false, answerSec: 5, roundSec: 0, tieMs: 400 };
+                correct: 10, wrong: -5, passOn: false, answerSec: 5, roundSec: 0, tieMs: 400,
+                introLabel: 'Round 5', introName: 'Buzzer round' };
   // ?mirror=1: a read-only copy of the quiz laptop's buzzer screen (inside
   // scores.html on the display system). It never talks to the phones.
   const MIRROR = new URLSearchParams(location.search).has('mirror');
@@ -239,6 +251,7 @@ body.fs:not(.panel-open) { cursor: none; }
       ans: answering() >= 0 ? ansLeft : null, ansSec: cfg.answerSec,
       clock: { sec: cfg.roundSec, left: clockLeft, run: clockRun },
       join: !$('#join').hidden,
+      intro: !!S.intro, introLabel: cfg.introLabel, introName: cfg.introName,
       presence: presenceInfo(),
       ts: now
     }, true);
@@ -316,6 +329,20 @@ body.fs:not(.panel-open) { cursor: none; }
     render(); publishState();
   }
   function clearPending() { pending = []; clearTimeout(flushTimer); flushTimer = null; }
+
+  /* ---------- title page (Round 5 and its name) ----------
+     Shown when the screen opens. → or Space goes to the buzzers; ← comes back. */
+  S.intro = true;
+  function renderIntro() {
+    const el = $('#intro'), lab = (cfg.introLabel || '').trim(), nm = (cfg.introName || '').trim();
+    el.hidden = !S.intro;
+    $('#introKick').textContent = nm ? lab : '';
+    $('#introBig').textContent = nm || lab || 'Buzzer round';
+    $('#introBig').style.fontSize = (nm || lab).length > 22 ? '6.4vw' : '';
+    $('.ih').textContent = '';
+    $('#qno').style.visibility = S.intro ? 'hidden' : '';
+  }
+  function setIntro(on) { S.intro = on; renderIntro(); publishState(); }
 
   function openBuzzers() {
     clearPending(); stopAnswer();
@@ -537,6 +564,7 @@ body.fs:not(.panel-open) { cursor: none; }
       box.appendChild(row);
     });
     $('#sCorrect').value = cfg.correct; $('#sWrong').value = cfg.wrong; $('#sPass').checked = !!cfg.passOn;
+    $('#sIntroLabel').value = cfg.introLabel || ''; $('#sIntroName').value = cfg.introName || '';
     $('#sAnswer').value = cfg.answerSec; $('#sRound').value = cfg.roundSec; $('#sTie').value = cfg.tieMs;
   }
   const num = (id, key, min, max) => $(id).addEventListener('change', e => {
@@ -547,6 +575,8 @@ body.fs:not(.panel-open) { cursor: none; }
   });
   num('#sCorrect', 'correct'); num('#sWrong', 'wrong');
   $('#sPass').addEventListener('change', e => { cfg.passOn = e.target.checked; save(); });
+  $('#sIntroLabel').addEventListener('input', e => { cfg.introLabel = e.target.value; save(); renderIntro(); publishState(); });
+  $('#sIntroName').addEventListener('input', e => { cfg.introName = e.target.value; save(); renderIntro(); publishState(); });
   num('#sAnswer', 'answerSec', 0, 120); num('#sRound', 'roundSec', 0, 3600); num('#sTie', 'tieMs', 100, 1500);
 
   /* Full screen: browsers only allow it after a click or key press, so the page
@@ -583,6 +613,16 @@ body.fs:not(.panel-open) { cursor: none; }
     if (keepFs && e.key !== 'Escape' && e.key.toLowerCase() !== 'f') { $('#start').hidden = true; enterFs(); }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
+    if (S.intro) {
+      if (k === ' ' || k === 'arrowright' || k === 'pagedown') { e.preventDefault(); setIntro(false); }
+      else if (k === 'j') toggleJoin();
+      else if (k === 'p') togglePanel();
+      else if (k === 'f') fullscreen();
+      else if (k === 'escape') { toggleJoin(false); togglePanel(false); }
+      return;
+    }
+    if ((k === 'arrowleft' || k === 'pageup') && S.phase !== 'open') { e.preventDefault(); setIntro(true); return; }
+    if (k === 'arrowright' || k === 'pagedown') { e.preventDefault(); return; }
     if (k === ' ') { e.preventDefault(); toggle(); }
     else if (k === 'c') correct();
     else if (k === 'w') wrong();
@@ -597,7 +637,7 @@ body.fs:not(.panel-open) { cursor: none; }
     else if (k === 'escape') { toggleJoin(false); togglePanel(false); }
   });
 
-  render(); renderClock(); renderConn(); renderPresence();
+  render(); renderClock(); renderConn(); renderPresence(); renderIntro();
   if (MIRROR) startMirror();
   else {
     operatorGate(startLink);
@@ -626,6 +666,7 @@ body.fs:not(.panel-open) { cursor: none; }
       if (m.clock) { cfg.roundSec = m.clock.sec || 0; clockLeft = m.clock.left || 0; clockRun = !!m.clock.run; }
       mirrorPresence = m.presence || null;
       if (!!m.join !== joinShown) { joinShown = !!m.join; toggleJoin(joinShown); }
+      S.intro = !!m.intro; cfg.introLabel = m.introLabel || ''; cfg.introName = m.introName || ''; renderIntro();
       render(); renderAnswer(); renderClock(); renderPresence();
     } });
   }

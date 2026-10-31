@@ -51,6 +51,7 @@ body.idle { cursor: none; }
 .tile .lb { font-size: 1.05vw; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: .6vh; }
 .tile .rd { font-size: 1.7vw; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: .4vh; }
 .tile .rd b { color: var(--text); font-weight: 800; }
+body.titlepage .tile .rd { visibility: hidden; }
 .tile .badge { position: absolute; top: 1.8vh; right: 1.2vw; background: var(--c); color: var(--ink); font-weight: 800;
   border-radius: 999px; padding: .3vh .8vw; font-size: 1.4vw; }
 .tile .badge[hidden] { display: none; }
@@ -110,9 +111,19 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 .rcard.cur { border-color: var(--text); }
 .rtop { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
 .rtop .num { font-weight: 800; color: var(--muted); width: 22px; text-align: center; }
+.rtop { grid-template-columns: 96px 1fr auto !important; }
+.rcard.tcard { background: #262D57; border-color: #3A4380; margin-top: 18px; }
+.rcard.tcard.cur { border-color: var(--text); }
+.tkind { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #FFB703; margin-bottom: 6px; }
 .rtop input { width: 100%; background: var(--surface); }
 .rpts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
 .rpts.r3 { grid-template-columns: repeat(3, 1fr); }
+.rpass { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.rpass[hidden] { display: none; }
+.rpass label { display: flex; align-items: center; gap: 6px; }
+.rpass input[type="checkbox"] { width: 16px; height: 16px; accent-color: #FFB703; }
+.rpass select { font: inherit; font-size: 13px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; }
+.rpass select:disabled { opacity: .45; }
 .rpts label { font-size: 12px; color: var(--muted); }
 .rpts input { width: 100%; margin-top: 3px; background: var(--surface); }
 .panel label.link { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
@@ -189,7 +200,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   <h3>Rounds and marks</h3>
   <p class="note">The highlighted round is on screen. Marks are set per round: Correct (C), Wrong (W), Pass (S) for a passed question answered correctly, and Bonus (B). Use a minus sign for negative marking; 0 switches a mark off.</p>
   <div id="roundList"></div>
-  <div class="btns"><button id="bAddRound">Add round</button><button id="bPlan">Restore the quiz plan</button></div>
+  <div class="btns"><button id="bAddRound">Add round</button><button id="bAddPart">Add part to the round on screen</button><button id="bPlan">Restore the quiz plan</button></div>
 
   <h3>Teams</h3>
   <div id="teamList"></div>
@@ -203,6 +214,13 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     <button id="bCustom">Custom mark (M)</button>
     <button id="bUndo">Undo last mark</button>
     <button id="bCsv">Download scores (CSV)</button>
+  </div>
+  <h3>Backup</h3>
+  <p class="note">A backup file holds everything: rounds, marks, teams, all scores and the buzzer screen’s scores. Download one after each round. “Load backup” restores it here, on another laptop, or in the offline copy.</p>
+  <div class="btns">
+    <button id="bBackup">Download backup</button>
+    <button id="bRestore">Load backup</button>
+    <input type="file" id="fRestore" accept=".json,application/json" hidden>
     <button id="bReset">Reset all scores</button>
   </div>
 
@@ -210,7 +228,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   <dl class="keys">
     <dt>1–6</dt><dd>Select a team (or click its tile)</dd>
     <dt>C</dt><dd>Correct: adds the correct mark to the selected team (press once per sub-question)</dd>
-    <dt>W</dt><dd>Wrong or unanswered: adds the wrong mark (if any), selects the next team and starts the pass timer</dd>
+    <dt>W</dt><dd>Wrong or unanswered: adds the wrong mark (if any). If this part has Pass on, selects the next team in the part’s pass order and starts the pass timer; otherwise the question ends</dd>
     <dt>S</dt><dd>Pass: adds the pass mark (a passed question answered correctly, once per sub-question)</dd>
     <dt>B</dt><dd>Bonus: adds this round’s bonus mark</dd>
     <dt>M</dt><dd>Custom mark for a partly correct answer: ¼, ½, ¾ or any number (decimals allowed)</dd>
@@ -256,24 +274,39 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   //   Two-part question: 10 per sub-question (20 a question); a passed question
   //   earns 5 per sub-question. One-part question: 10 direct, 5 on a pass.
   //   Time: 30 s for the direct question, 5 s for a passed question.
+  // The running order is one list. A *title page* ({title:true}) opens each
+  // round; the parts after it belong to that round until the next title page.
+  // Title page: label ("Round 1") + the round's own name.
+  // Part: label ("Part 1") + the part's own name, marks and times.
+  // The buzzer round has no title page here; the buzzer screen shows its own.
   function planRounds() {
     const two = { parts: 2 }, one = { parts: 1 };
     // Round 2 – Part 2: one question with four sub-questions, 5 each (20 a
     // question), 2.5 each after a pass.
-    const four = { parts: 4, correct: 5, pass: 2.5 };
+    const four = { parts: 4, correct: 5, pass: 2.5, passOn: false };   // Round 2 – Part 2: no pass
+    const part = (label, o) => ({ id: uid(), label, name: '', correct: o.correct || 10, wrong: 0, pass: o.pass || 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false,
+      passOn: o.passOn !== false, dir: 'fwd' });
+    const title = n => ({ id: uid(), title: true, label: 'Round ' + n, name: '' });
     return [
-      ['Round 1 – Part 1', two], ['Round 1 – Part 2', one],
-      ['Round 2 – Part 1', one], ['Round 2 – Part 2', four],
-      ['Round 3 – Part 1', one], ['Round 3 – Part 2', two],
-      ['Round 4 – Part 1', one], ['Round 4 – Part 2', one]
-    ].map(([name, o]) => ({ id: uid(), name, correct: o.correct || 10, wrong: 0, pass: o.pass || 5, bonus: 0, parts: o.parts, tDirect: 30, tPass: 5, buzzer: false }))
-      .concat([{ id: uid(), name: 'Round 5 – Buzzer round', correct: 10, wrong: -5, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }]);
+      title(1), part('Part 1', two), part('Part 2', one),
+      title(2), part('Part 1', one), part('Part 2', four),
+      title(3), part('Part 1', one), part('Part 2', two),
+      title(4), part('Part 1', one), part('Part 2', one),
+      { id: uid(), label: 'Round 5', name: '', correct: 10, wrong: -5, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }
+    ];
+  }
+  // Pass order alternates part by part: 1st part forward (1→2→3→4),
+  // 2nd backward (4→3→2→1), 3rd forward …
+  function alternateOrder(list, onlyMissing) {
+    let n = 0;
+    list.forEach(r => { if (r.title || r.buzzer) return; if (!onlyMissing || (r.dir !== 'fwd' && r.dir !== 'back')) r.dir = n % 2 ? 'back' : 'fwd'; n++; });
+    return list;
   }
   function defaults() {
-    const rounds = planRounds();
+    const rounds = alternateOrder(planRounds());
     return {
       title: 'APPSCON 2026 – Quiz competition', subtitle: 'Live scoreboard',
-      rounds, cur: 0,
+      rounds, cur: 0, layout: 3,
       teams: [0, 1, 2, 3].map(i => ({ name: 'Team ' + (i + 1), color: COLORS[i] })),
       scores: {}, history: []
     };
@@ -294,21 +327,48 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       } catch (e) {}
     }
   }
-  D.rounds.forEach(r => {
-    if (typeof r.pass !== 'number') r.pass = 0;
-    if (typeof r.bonus !== 'number') r.bonus = 0;
-    if (typeof r.buzzer !== 'boolean') r.buzzer = /buzzer/i.test(r.name) && !D.rounds.some(o => o.buzzer === true);
-    if (typeof r.parts !== 'number') r.parts = 1;
-    if (typeof r.tDirect !== 'number') r.tDirect = 0;
-    if (typeof r.tPass !== 'number') r.tPass = 0;
-  });
   if (!MIRROR && (D.plan || 1) < 2) {
     // Plan update 2: Round 2 – Part 2 has four sub-questions (5 each, 2.5 on a
     // pass). Applied only if that round still has the first plan's values.
-    const r = D.rounds.find(x => /^round 2\s*[–-]\s*part 2$/i.test(x.name.trim()));
+    const r = D.rounds.find(x => /^round 2\s*[–-]\s*part 2$/i.test((x.name || '').trim()));
     if (r && r.parts === 1 && r.correct === 10 && r.pass === 5) { r.parts = 4; r.correct = 5; r.pass = 2.5; }
     D.plan = 2;
   }
+  function titleOfList(list, k) { for (let i = k; i >= 0; i--) if (list[i] && list[i].title) return list[i]; return null; }
+  if (!MIRROR && (D.layout || 1) < 3) {
+    // Layout 3: title pages, and separate labels and names for parts.
+    // Scores stay attached to the same parts.
+    const out = []; let lastGroup = null, newCur = 0;
+    D.rounds.forEach((r, k) => {
+      const m = /^\s*(round\s*\d+)\s*[–-]\s*(.+?)\s*$/i.exec(r.name || '');
+      const grp = m ? m[1].replace(/\s+/, ' ').replace(/^r/, 'R') : null;
+      if (r.buzzer) { r.label = grp || 'Buzzer round'; r.name = m && !/^buzzer round$/i.test(m[2]) ? m[2] : ''; }
+      else if (m) {
+        if (grp !== lastGroup) { out.push({ id: uid(), title: true, label: grp, name: '' }); lastGroup = grp; }
+        r.label = m[2]; r.name = '';
+      } else { r.label = r.name || 'Round'; r.name = ''; }
+      if (k === D.cur) newCur = out.length;
+      out.push(r);
+    });
+    D.rounds = out; D.cur = D.cur === 0 ? 0 : newCur; D.layout = 3;
+  }
+  D.rounds.forEach(r => {
+    if (r.title) { r.label = r.label || 'Round'; r.name = r.name || ''; return; }
+    if (typeof r.label !== 'string') { r.label = r.name || 'Part'; r.name = ''; }
+    if (typeof r.name !== 'string') r.name = '';
+    if (typeof r.pass !== 'number') r.pass = 0;
+    if (typeof r.bonus !== 'number') r.bonus = 0;
+    if (typeof r.buzzer !== 'boolean') r.buzzer = /buzzer/i.test(r.label + ' ' + r.name) && !D.rounds.some(o => o.buzzer === true);
+    if (typeof r.parts !== 'number') r.parts = 1;
+    if (typeof r.tDirect !== 'number') r.tDirect = 0;
+    if (typeof r.tPass !== 'number') r.tPass = 0;
+    if (typeof r.passOn !== 'boolean') {
+      // Round 2 – Part 2 has no pass; every other part passes on a wrong answer.
+      const k = D.rounds.indexOf(r), t = titleOfList(D.rounds, k);
+      r.passOn = !(t && /^round\s*2$/i.test((t.label || '').trim()) && /^part\s*2$/i.test((r.label || '').trim()));
+    }
+  });
+  alternateOrder(D.rounds, true);
   const save = () => {
     if (MIRROR) return;
     D.ts = Date.now();
@@ -329,7 +389,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       ov: $('#overview').classList.contains('open'), sel,
       flash: lastFlash ? Object.assign({}, lastFlash, { left: Math.max(0, lastFlash.until - now) }) : null,
       timer: Object.assign({}, TM),
-      rounds: D.rounds.map(r => ({ name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, parts: r.parts, tDirect: r.tDirect, tPass: r.tPass, buzzer: !!r.buzzer })),
+      bm: buzzMarks(),
+      rounds: D.rounds.map(r => r.title ? { title: true, label: r.label, name: r.name } : ({ label: r.label, name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, parts: r.parts, tDirect: r.tDirect, tPass: r.tPass, buzzer: !!r.buzzer, passOn: r.passOn !== false, dir: r.dir })),
       teams: D.teams.map(t => ({ name: t.name, color: t.color })),
       scores: D.rounds.map(r => D.teams.map((_, t) => ((D.scores[r.id] || [])[t] || 0))),
       ts: D.ts || Date.now()
@@ -340,6 +401,17 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   let flashTimer = null;
 
   const round = () => D.rounds[D.cur];
+  const isTitle = () => !!(round() && round().title);
+  const partsList = () => D.rounds.filter(r => !r.title);
+  // the title page a part belongs to (null for the buzzer round or none)
+  function titleOf(k) {
+    if (D.rounds[k] && D.rounds[k].buzzer) return null;
+    for (let i = k; i >= 0; i--) if (D.rounds[i].title) return D.rounds[i];
+    return null;
+  }
+  const titleText = t => t ? t.label + (t.name ? ' – ' + t.name : '') : '';
+  const partShort = (r, k) => r.buzzer ? r.label : (titleOf(k) ? titleOf(k).label + ' · ' : '') + r.label;
+  const partBig = r => r.name || (r.buzzer ? 'Buzzer round' : r.label);
   const sc = (rid, t) => ((D.scores[rid] || [])[t] || 0);
 
   /* ---------- link to the buzzer screen (host.html) ----------
@@ -358,13 +430,20 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     if (JSON.stringify(next) !== before) { save(); return true; }
     return false;
   }
-  function pushNamesToBuzzer() {
-    if (!buzzRound()) return;
+  // force: the buzzer round's label or name was just edited here.
+  function pushNamesToBuzzer(force) {
+    const br = buzzRound();
+    if (!br) return;
     const b = readBuzz() || {};
     b.names = [0, 1, 2, 3].map(t => (D.teams[t] ? D.teams[t].name : 'Team ' + (t + 1)));
+    // the buzzer screen's title page shows the buzzer round's number and name
+    if (force || typeof b.introLabel !== 'string') { b.introLabel = br.label || 'Round 5'; b.introName = br.name || 'Buzzer round'; }
     try { localStorage.setItem(BUZZ_KEY, JSON.stringify(b)); } catch (e) {}
   }
-  const buzzMarks = () => { const b = readBuzz() || {}; return { correct: typeof b.correct === 'number' ? b.correct : 10, wrong: typeof b.wrong === 'number' ? b.wrong : -5, passOn: !!b.passOn }; };
+  let mirrorBM = null;
+  const buzzMarks = () => {
+    if (MIRROR && mirrorBM) return mirrorBM;
+    const b = readBuzz() || {}; return { correct: typeof b.correct === 'number' ? b.correct : 10, wrong: typeof b.wrong === 'number' ? b.wrong : -5, passOn: !!b.passOn }; };
   const r2 = v => Math.round(v * 100) / 100;
   const setSc = (rid, t, v) => { if (!D.scores[rid]) D.scores[rid] = []; D.scores[rid][t] = r2(v); };
   const total = t => r2(D.rounds.reduce((s, r) => s + sc(r.id, t), 0));
@@ -395,21 +474,40 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   const sDown = () => tone(170, .35, 'square', .16);
 
   /* ---------- marking ---------- */
+  let passOrigin = null;   // the team the question was first asked to
   function mark(kind) {
+    if (isTitle()) { flashMsg('Title page: press → to go to Part 1', null); return; }
     if (round().buzzer) { flashMsg('This round is scored on the buzzer screen', null); return; }
     if (sel < 0 || sel >= D.teams.length) { flashMsg('Select a team first (keys 1–' + D.teams.length + ')', null); return; }
     const r = round(), pts = r[kind];
     if (kind === 'wrong') {
-      // Wrong or unanswered: the question passes to the next team.
+      // Wrong or unanswered.
       if (pts) { setSc(r.id, sel, sc(r.id, sel) + pts); D.history.push({ r: r.id, t: sel, pts }); save(); sDown(); bump(sel); }
-      const from = sel; sel = (sel + 1) % D.teams.length;
-      flashMsg((pts ? D.teams[from].name + '  ' + fmtPts(pts) + ', passed to ' : 'Passed to ') + D.teams[sel].name, sel, pts ? 'down' : '');
+      const from = sel, nm = D.teams[from].name + (pts ? '  ' + fmtPts(pts) : '');
+      if (!r.passOn) {
+        // No pass in this part: the question ends here.
+        passOrigin = null; stopTimer();
+        flashMsg(nm + (pts ? ', no pass' : ': no pass'), from, pts ? 'down' : '');
+        render(); return;
+      }
+      // Pass on: to the next team in this part's order (forward 1→2→3→4,
+      // backward 4→3→2→1), until it comes back to the team that was asked.
+      if (passOrigin === null) passOrigin = from;
+      const n = D.teams.length, nx = r.dir === 'back' ? (from - 1 + n) % n : (from + 1) % n;
+      if (nx === passOrigin) {
+        passOrigin = null; stopTimer();
+        flashMsg((pts ? nm + ', ' : '') + 'Passed round all teams', from, pts ? 'down' : '');
+        render(); return;
+      }
+      sel = nx;
+      flashMsg((pts ? nm + ', passed to ' : 'Passed to ') + D.teams[sel].name, sel, pts ? 'down' : '');
       startTimer('pass');
       render();
       return;
     }
+    if (kind === 'pass' && !r.passOn) { flashMsg('No pass in this part', null); return; }
     if (!pts) { flashMsg(kind[0].toUpperCase() + kind.slice(1) + ' is 0 in this round', null); return; }
-    if (kind === 'correct' || kind === 'pass') stopTimer();
+    if (kind === 'correct' || kind === 'pass') { stopTimer(); passOrigin = null; }
     setSc(r.id, sel, sc(r.id, sel) + pts);
     D.history.push({ r: r.id, t: sel, pts });
     if (D.history.length > 500) D.history.shift();
@@ -422,7 +520,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   /* ---------- question timer (direct 30 s, pass 5 s by default) ---------- */
   let TM = { kind: null, left: 0, run: false, done: false }, tEnd = 0, tInt = null, tHide = null;
   function startTimer(kind) {
-    const r = round(), sec = kind === 'pass' ? r.tPass : r.tDirect;
+    const r = round(), sec = r.title ? 0 : (kind === 'pass' ? r.tPass : r.tDirect);
     clearInterval(tInt); clearTimeout(tHide);
     if (!sec || r.buzzer) { TM = { kind: null, left: 0, run: false, done: false }; renderTimer(); return; }
     TM = { kind, left: sec, run: true, done: false }; tEnd = Date.now() + sec * 1000;
@@ -457,6 +555,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
 
   /* ---------- custom (part) marks: ¼, ½, ¾ or any number ---------- */
   function openCustom() {
+    if (isTitle()) { flashMsg('Title page: press → to go to Part 1', null); return; }
     if (round().buzzer) { flashMsg('This round is scored on the buzzer screen', null); return; }
     if (sel < 0 || sel >= D.teams.length) { flashMsg('Select a team first (keys 1–' + D.teams.length + ')', null); return; }
     const r = round(), t = D.teams[sel], box = $('#custom');
@@ -480,6 +579,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   }
   function closeCustom() { $('#custom').hidden = true; }
   function giveCustom(v) {
+    passOrigin = null;
     const pts = r2(parseFloat(v));
     closeCustom();
     if (!pts || sel < 0) return;
@@ -531,7 +631,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       const el = document.createElement('div');
       el.className = 'tile';
       el.innerHTML = '<div class="nm"></div><div class="lb">This round</div><div class="sc"></div><div class="rd">Total <b></b></div><div class="badge" hidden></div>';
-      el.addEventListener('click', () => { if (MIRROR || gateOpen()) return; sel = sel === i ? -1 : i; render(); });
+      el.addEventListener('click', () => { if (MIRROR || gateOpen()) return; sel = sel === i ? -1 : i; passOrigin = null; render(); });
       box.appendChild(el);
       return el;
     });
@@ -543,28 +643,47 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     const r = round();
     $('#title').textContent = D.title; $('#subtitle').textContent = D.subtitle;
     $('#subtitle').hidden = !D.subtitle.trim();
-    $('#rno').textContent = (D.cur + 1) + ' of ' + D.rounds.length;
-    $('#kicker').textContent = 'Round ' + (D.cur + 1);
-    $('#kicker').hidden = /^\s*round\b/i.test(r.name);
-    $('#roundName').style.fontSize = r.name.length > 26 ? '5vw' : r.name.length > 16 ? '6.4vw' : '';
-    $('#roundName').textContent = r.name;
+    const T = r.title ? r : titleOf(D.cur);
+    let kick, big;
+    if (r.title) { big = r.name || r.label; kick = r.name ? r.label : ''; }
+    else if (r.buzzer) { big = partBig(r); kick = r.name ? r.label : (/^round/i.test(r.label) ? r.label : ''); }
+    else { big = partBig(r); kick = titleText(T) + (r.name ? (T ? '  ·  ' : '') + r.label : ''); }
+    $('#rno').textContent = '';   // the round and part are shown in the middle
+    $('#kicker').textContent = kick; $('#kicker').hidden = !kick;
+    $('#roundName').style.fontSize = big.length > 26 ? '5vw' : big.length > 16 ? '6.4vw' : '';
+    $('#roundName').textContent = big;
+    document.body.classList.toggle('titlepage', !!r.title);
     const mk = $('#marks'); mk.textContent = '';
+    if (r.title) {
+      // Title page: list the parts of this round under its name.
+      for (let k = D.cur + 1; k < D.rounds.length && !D.rounds[k].title && !D.rounds[k].buzzer; k++) {
+        const p = D.rounds[k], sp = document.createElement('span'), b = document.createElement('b');
+        sp.textContent = p.label + (p.name ? ' ' : ''); b.textContent = p.name; sp.appendChild(b); mk.appendChild(sp);
+      }
+    } else {
     const bm = r.buzzer ? buzzMarks() : null;
     const each = !bm && r.parts > 1 ? ' each' : '';
     const pill = (lab, val) => { const sp = document.createElement('span'), b = document.createElement('b'); sp.textContent = lab + ' '; b.textContent = val; sp.appendChild(b); mk.appendChild(sp); };
     if (each) pill('Sub-questions', r.parts);
-    (bm ? [['Correct', bm.correct], ['Wrong', bm.wrong]] : [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.pass], ['Bonus', r.bonus]]).forEach(([lab, v]) => {
+    (bm ? [['Correct', bm.correct], ['Wrong', bm.wrong]] : [['Correct', r.correct], ['Wrong', r.wrong], ['Pass', r.passOn ? r.pass : 0], ['Bonus', r.bonus]]).forEach(([lab, v]) => {
       if (v) pill(lab, fmtPts(v) + each);
     });
     if (bm && !bm.passOn) pill('No pass', '');
-    if (!bm && (r.tDirect || r.tPass)) pill('Time', [r.tDirect ? r.tDirect + ' s' : '', r.tPass ? 'pass ' + r.tPass + ' s' : ''].filter(Boolean).join(', '));
+    if (!bm && (r.tDirect || r.tPass)) pill('Time', [r.tDirect ? r.tDirect + ' s' : '', r.passOn && r.tPass ? 'pass ' + r.tPass + ' s' : ''].filter(Boolean).join(', '));
+    if (!bm) {
+      if (!r.passOn) pill('No pass', '');
+      else { const ids = D.teams.map((_, i) => i + 1); pill('Pass order', (r.dir === 'back' ? ids.reverse() : ids).join(' → ')); }
+    }
+    }
 
     const rk = ranks(), show = anyScore();
     tiles.forEach((el, i) => {
       const t = D.teams[i];
       el.style.setProperty('--c', t.color); el.style.setProperty('--ink', inkFor(t.color));
       el.querySelector('.nm').textContent = t.name;
-      const rs = sc(r.id, i);
+      // On a title page the tiles show the totals; on a part, that part's score.
+      const rs = r.title ? total(i) : sc(r.id, i);
+      el.querySelector('.lb').textContent = r.title ? 'Total' : 'This round';
       el.querySelector('.sc').textContent = rs < 0 ? '\u2212' + Math.abs(rs) : rs;
       el.querySelector('.rd b').textContent = total(i) < 0 ? '\u2212' + Math.abs(total(i)) : total(i);
       const b = el.querySelector('.badge');
@@ -578,7 +697,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
 
   function renderOverview() {
     const rk = ranks(), lead = Math.min(...rk), show = anyScore();
-    $('#ovsub').textContent = 'After round ' + (D.cur + 1) + ' of ' + D.rounds.length;
+    const cr = round();
+    $('#ovsub').textContent = cr.title ? titleText(cr) : 'Now: ' + partShort(cr, D.cur);
     const tb = $('#ovtable'); tb.textContent = '';
     const thead = tb.createTHead().insertRow();
     const th = (txt, cls, small) => {
@@ -587,7 +707,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       c.appendChild(document.createTextNode(txt)); thead.appendChild(c);
     };
     th('Rank'); th('Team', 'team');
-    D.rounds.forEach((r, k) => th(r.name, k === D.cur ? 'cur' : '', /^\s*round\b/i.test(r.name) ? '' : 'ROUND ' + (k + 1)));
+    D.rounds.forEach((r, k) => { if (!r.title) th(r.buzzer ? partBig(r) : r.name, k === D.cur ? 'cur' : '', partShort(r, k).toUpperCase()); });
     th('Total');
     const body = tb.createTBody();
     // Rows sorted by total, highest first; team order breaks ties.
@@ -599,6 +719,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       const n = td('', 'team'); n.style.setProperty('--c', t.color);
       const dot = document.createElement('i'); n.appendChild(dot); n.appendChild(document.createTextNode(t.name));
       D.rounds.forEach((r, k) => {
+        if (r.title) return;
         const v = sc(r.id, i);
         const later = k > D.cur && !v;
         td(later ? '–' : (v > 0 ? '+' + v : v < 0 ? '\u2212' + Math.abs(v) : '0'),
@@ -619,6 +740,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   }
 
   function goRound(d) {
+    passOrigin = null;
     const n = Math.max(0, Math.min(D.rounds.length - 1, D.cur + d));
     if (n === D.cur) return;
     D.cur = n; sel = -1; stopTimer(); save(); render(); if (!$('#panel').hidden) renderPanel();
@@ -638,20 +760,56 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     const rl = $('#roundList'); rl.textContent = '';
     D.rounds.forEach((r, k) => {
       const c = document.createElement('div');
-      c.className = 'rcard' + (k === D.cur ? ' cur' : '');
+      c.className = 'rcard' + (k === D.cur ? ' cur' : '') + (r.title ? ' tcard' : '');
+      const showBtn = () => {
+        const show = c.querySelector('.show');
+        show.textContent = k === D.cur ? 'On screen' : 'Show';
+        show.className = k === D.cur ? 'primary show' : 'show';
+        show.addEventListener('click', () => { D.cur = k; sel = -1; stopTimer(); save(); render(); renderPanel(); });
+      };
+      const moveDel = () => {
+        const up = c.querySelector('.up'), dn = c.querySelector('.dn'), del = c.querySelector('.del');
+        up.disabled = k === 0; dn.disabled = k === D.rounds.length - 1; del.disabled = partsList().length <= 1 && !r.title;
+        up.addEventListener('click', () => moveRound(k, -1));
+        dn.addEventListener('click', () => moveRound(k, 1));
+        del.addEventListener('click', () => {
+          const has = D.teams.some((_, t) => sc(r.id, t));
+          const what = r.title ? 'the title page “' + titleText(r) + '” (its parts stay)' : '“' + partShort(r, k) + (r.name ? ' – ' + r.name : '') + '”' + (has ? ' and the marks scored in it' : '');
+          if (!confirm('Delete ' + what + '?')) return;
+          D.rounds.splice(k, 1); delete D.scores[r.id]; D.history = D.history.filter(h => h.r !== r.id);
+          if (D.cur > k || D.cur >= D.rounds.length) D.cur = Math.max(0, D.cur - 1);
+          save(); render(); renderPanel();
+        });
+      };
+      const nameInputs = (labelHint, nameHint) => {
+        const lb = c.querySelector('.rlabel'), nm = c.querySelector('.rname');
+        lb.value = r.label; nm.value = r.name; lb.placeholder = labelHint; nm.placeholder = nameHint;
+        lb.addEventListener('input', () => { r.label = lb.value; save(); if (r.buzzer) pushNamesToBuzzer(true); render(); });
+        nm.addEventListener('input', () => { r.name = nm.value; save(); if (r.buzzer) pushNamesToBuzzer(true); render(); });
+      };
+      if (r.title) {
+        c.innerHTML =
+          '<div class="tkind">Title page</div>' +
+          '<div class="rtop"><input class="rlabel" aria-label="Round number"><input class="rname" aria-label="Round name"><button class="show"></button></div>' +
+          '<div class="ract"><span><button class="ghost up">Move up</button><button class="ghost dn">Move down</button></span><button class="ghost del">Delete</button></div>';
+        nameInputs('Round 1', 'Name of this round');
+        showBtn(); moveDel(); rl.appendChild(c);
+        return;
+      }
       c.innerHTML =
-        '<div class="rtop"><span class="num"></span><input class="rname" aria-label="Round name"><button class="show"></button></div>' +
+        '<div class="rtop"><input class="rlabel" aria-label="Part label"><input class="rname" aria-label="Part name"><button class="show"></button></div>' +
         '<div class="rpts"><label>Correct (C)<input type="number" class="pc"></label><label>Wrong (W)<input type="number" class="pw"></label><label>Pass (S)<input type="number" class="ps"></label><label>Bonus (B)<input type="number" class="pb"></label></div>' +
         '<div class="rpts r3"><label>Sub-questions<input type="number" class="pp" min="1"></label><label>Time, direct (s)<input type="number" class="pt" min="0"></label><label>Time, pass (s)<input type="number" class="pq" min="0"></label></div>' +
+        '<div class="rpass"><label><input type="checkbox" class="po"> Pass on (W passes to the next team)</label><label>Order <select class="pd"><option value="fwd">Forward 1→2→3→4</option><option value="back">Backward 4→3→2→1</option></select></label></div>' +
         '<label class="link"><input type="checkbox" class="lk"> Scores come from the buzzer screen</label>' +
         '<div class="ract"><span><button class="ghost up" title="Move up">Move up</button><button class="ghost dn" title="Move down">Move down</button></span><button class="ghost del">Delete</button></div>';
-      c.querySelector('.num').textContent = k + 1;
-      const nm = c.querySelector('.rname'); nm.value = r.name;
-      nm.addEventListener('input', () => { r.name = nm.value; save(); render(); });
-      const show = c.querySelector('.show');
-      show.textContent = k === D.cur ? 'On screen' : 'Show';
-      show.className = k === D.cur ? 'primary show' : 'show';
-      show.addEventListener('click', () => { D.cur = k; sel = -1; save(); render(); renderPanel(); });
+      nameInputs(r.buzzer ? 'Round 5' : 'Part 1', r.buzzer ? 'Name of the buzzer round' : 'Name of this part');
+      showBtn();
+      const po = c.querySelector('.po'), pd = c.querySelector('.pd');
+      po.checked = !!r.passOn; pd.value = r.dir === 'back' ? 'back' : 'fwd'; pd.disabled = !r.passOn;
+      if (r.buzzer) { c.querySelector('.rpass').hidden = true; }
+      po.addEventListener('change', () => { r.passOn = po.checked; pd.disabled = !r.passOn; save(); render(); });
+      pd.addEventListener('change', () => { r.dir = pd.value; save(); render(); });
       const lk = c.querySelector('.lk'); lk.checked = !!r.buzzer;
       lk.addEventListener('change', () => {
         D.rounds.forEach(o => { o.buzzer = false; });
@@ -670,17 +828,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
         if (r.buzzer) { inp.disabled = true; inp.title = 'The buzzer screen has its own timer'; }
         inp.addEventListener('change', () => { r[key] = Math.max(min, parseInt(inp.value, 10) || 0); inp.value = r[key]; save(); render(); });
       });
-      const up = c.querySelector('.up'), dn = c.querySelector('.dn'), del = c.querySelector('.del');
-      up.disabled = k === 0; dn.disabled = k === D.rounds.length - 1; del.disabled = D.rounds.length <= 1;
-      up.addEventListener('click', () => moveRound(k, -1));
-      dn.addEventListener('click', () => moveRound(k, 1));
-      del.addEventListener('click', () => {
-        const has = D.teams.some((_, t) => sc(r.id, t));
-        if (!confirm('Delete “' + r.name + '”' + (has ? ' and the marks scored in it' : '') + '?')) return;
-        D.rounds.splice(k, 1); delete D.scores[r.id]; D.history = D.history.filter(h => h.r !== r.id);
-        if (D.cur > k || D.cur >= D.rounds.length) D.cur = Math.max(0, D.cur - 1);
-        save(); render(); renderPanel();
-      });
+      moveDel();
       rl.appendChild(c);
     });
 
@@ -707,8 +855,9 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
 
   function renderScores() {
     const r = round();
-    $('#hRoundScores').textContent = 'Scores in round ' + (D.cur + 1) + ' (' + r.name + ')' + (r.buzzer ? ', from the buzzer screen' : '');
     const box = $('#roundScores');
+    if (r.title) { $('#hRoundScores').textContent = 'Scores'; box.textContent = 'A title page has no scores. Show a part to correct its scores.'; return; }
+    $('#hRoundScores').textContent = 'Scores in ' + partShort(r, D.cur) + (r.name ? ' (' + r.name + ')' : '') + (r.buzzer ? ', from the buzzer screen' : '');
     if (box.contains(document.activeElement)) return;   // don't disturb typing
     box.textContent = '';
     D.teams.forEach((t, i) => {
@@ -736,15 +885,32 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   $('#iTitle').addEventListener('input', e => { D.title = e.target.value; save(); render(); });
   $('#iSub').addEventListener('input', e => { D.subtitle = e.target.value; save(); render(); });
   $('#bPlan').addEventListener('click', () => {
-    if (!confirm('Replace all rounds with the quiz plan (Round 1 – Part 1 … Round 5 – Buzzer round, with its marks and times)? All marks scored so far are cleared. Team names are kept.')) return;
-    D.rounds = planRounds(); D.scores = {}; D.history = []; D.cur = 0; sel = -1; stopTimer();
+    if (!confirm('Replace all rounds with the quiz plan (Round 1 title page, Part 1, Part 2 … Round 5 buzzer round, with marks and times)? Round and part names and all marks scored so far are cleared. Team names are kept.')) return;
+    D.rounds = alternateOrder(planRounds()); D.layout = 3; D.scores = {}; D.history = []; D.cur = 0; sel = -1; stopTimer(); pushNamesToBuzzer(true);
+    save(); render(); renderPanel();
+  });
+  $('#bAddPart').addEventListener('click', () => {
+    // after the last part of the round that is on screen
+    let k = D.cur;
+    if (round().buzzer) { flashMsg('The buzzer round has no parts', null); return; }
+    while (k + 1 < D.rounds.length && !D.rounds[k + 1].title && !D.rounds[k + 1].buzzer) k++;
+    let n = 0; for (let i = k; i >= 0 && !D.rounds[i].title; i--) if (!D.rounds[i].buzzer) n++;
+    const ref = D.rounds[k].title ? (D.rounds.filter(r => !r.title && !r.buzzer).pop() || {}) : D.rounds[k];
+    D.rounds.splice(k + 1, 0, { id: uid(), label: 'Part ' + (n + 1), name: '', correct: ref.correct ?? 10, wrong: ref.wrong ?? 0, pass: ref.pass ?? 5, bonus: ref.bonus ?? 0, parts: 1, tDirect: ref.tDirect ?? 30, tPass: ref.tPass ?? 5, buzzer: false, passOn: ref.passOn !== false });
+    alternateOrder(D.rounds, true);
     save(); render(); renderPanel();
   });
   $('#bAddRound').addEventListener('click', () => {
-    const last = D.rounds.filter(r => !r.buzzer).pop() || { correct: 10, wrong: 0, pass: 5, bonus: 0, parts: 1, tDirect: 30, tPass: 5 };
-    D.rounds.push({ id: uid(), name: 'Round ' + (D.rounds.length + 1), correct: last.correct, wrong: last.wrong, pass: last.pass, bonus: last.bonus, parts: last.parts, tDirect: last.tDirect, tPass: last.tPass, buzzer: false });
+    // A new round = a title page and two parts, placed before the buzzer round if that is last.
+    const last = D.rounds.filter(r => !r.title && !r.buzzer).pop() || { correct: 10, wrong: 0, pass: 5, bonus: 0, parts: 1, tDirect: 30, tPass: 5 };
+    const n = D.rounds.filter(r => r.title).length + 1;
+    const mk = label => ({ id: uid(), label, name: '', correct: last.correct, wrong: last.wrong, pass: last.pass, bonus: last.bonus, parts: 1, tDirect: last.tDirect, tPass: last.tPass, buzzer: false, passOn: true });
+    const add = [{ id: uid(), title: true, label: 'Round ' + n, name: '' }, mk('Part 1'), mk('Part 2')];
+    const at = D.rounds.length && D.rounds[D.rounds.length - 1].buzzer ? D.rounds.length - 1 : D.rounds.length;
+    D.rounds.splice(at, 0, ...add);
+    alternateOrder(D.rounds, true);
     save(); render(); renderPanel();
-    const inputs = document.querySelectorAll('#roundList .rname'); inputs[inputs.length - 1].select();
+    const cards = document.querySelectorAll('#roundList .rcard'); if (cards[at]) { cards[at].scrollIntoView({ block: 'center' }); cards[at].querySelector('.rname').focus(); }
   });
   $('#bAddTeam').addEventListener('click', () => {
     if (D.teams.length >= 6) return;
@@ -764,10 +930,43 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     }
     save(); render(); renderPanel();
   });
+  /* ---------- backup file (works between the online page and the offline copy) ---------- */
+  $('#bBackup').addEventListener('click', () => {
+    const data = { app: 'appscon-quiz', version: 1, savedAt: new Date().toISOString(), scoreboard: D, buzzer: readBuzz() };
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const t = new Date(), hh = String(t.getHours()).padStart(2, '0'), mm = String(t.getMinutes()).padStart(2, '0');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'APPSCON quiz backup ' + hh + '-' + mm + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    flashMsg('Backup saved to Downloads', null);
+  });
+  $('#bRestore').addEventListener('click', () => $('#fRestore').click());
+  $('#fRestore').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let data;
+      try { data = JSON.parse(rd.result); } catch (err) { alert('That file is not a quiz backup.'); return; }
+      const sb = data && data.scoreboard;
+      if (!data || data.app !== 'appscon-quiz' || !sb || !Array.isArray(sb.rounds) || !Array.isArray(sb.teams)) { alert('That file is not a quiz backup.'); return; }
+      const when = data.savedAt ? new Date(data.savedAt).toLocaleString() : 'unknown time';
+      if (!confirm('Replace everything on this scoreboard with the backup from ' + when + '?')) return;
+      D = sb; D.scores = D.scores || {}; D.history = D.history || [];
+      D.rounds.forEach(r => { if (r.title) return; ['pass', 'bonus', 'tDirect', 'tPass'].forEach(k => { if (typeof r[k] !== 'number') r[k] = 0; }); if (typeof r.parts !== 'number') r.parts = 1; if (typeof r.label !== 'string') { r.label = r.name || 'Part'; r.name = ''; } if (typeof r.passOn !== 'boolean') r.passOn = true; r.buzzer = !!r.buzzer; });
+      alternateOrder(D.rounds, true);
+      if (data.buzzer) { try { localStorage.setItem(BUZZ_KEY, JSON.stringify(data.buzzer)); } catch (err) {} }
+      sel = -1; stopTimer(); save(); buildTiles(); render(); renderPanel();
+      flashMsg('Backup loaded', null);
+    };
+    rd.readAsText(f);
+  });
+
   $('#bCsv').addEventListener('click', () => {
     const q = s => '"' + String(s).replace(/"/g, '""') + '"';
-    const rows = [['Team', ...D.rounds.map((r, k) => (k + 1) + '. ' + r.name), 'Total'].map(q).join(',')];
-    D.teams.forEach((t, i) => rows.push([q(t.name), ...D.rounds.map(r => sc(r.id, i)), total(i)].join(',')));
+    const cols = D.rounds.map((r, k) => [r, k]).filter(([r]) => !r.title);
+    const rows = [['Team', ...cols.map(([r, k]) => partShort(r, k) + (r.name ? ' – ' + r.name : '')), 'Total'].map(q).join(',')];
+    D.teams.forEach((t, i) => rows.push([q(t.name), ...cols.map(([r]) => sc(r.id, i)), total(i)].join(',')));
     const blob = new Blob(['\ufeff' + rows.join('\r\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'APPSCON 2026 quiz scores.csv';
@@ -799,7 +998,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (keepFs && k !== 'escape' && k !== 'f') { $('#start').hidden = true; enterFs(); }
-    if (/^[1-6]$/.test(k) && +k <= D.teams.length) { sel = sel === +k - 1 ? -1 : +k - 1; render(); }
+    if (/^[1-6]$/.test(k) && +k <= D.teams.length) { sel = sel === +k - 1 ? -1 : +k - 1; passOrigin = null; render(); }
     else if (k === 'c') mark('correct');
     else if (k === 'w') mark('wrong');
     else if (k === 's') mark('pass');
@@ -857,6 +1056,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       const scores = {}; rounds.forEach((r, k) => { scores[r.id] = (m.scores && m.scores[k] || []).slice(); });
       D = { title: m.title || '', subtitle: m.subtitle || '', cur: m.cur || 0, rounds, teams: m.teams, scores, history: [] };
       sel = typeof m.sel === 'number' ? m.sel : -1;
+      mirrorBM = m.bm || null;
       if (m.timer) { TM = Object.assign({ kind: null, left: 0, run: false, done: false }, m.timer); renderTimer(); }
       w.hidden = true;
       render();
