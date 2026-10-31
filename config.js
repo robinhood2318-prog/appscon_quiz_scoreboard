@@ -4,10 +4,10 @@ window.QUIZ = {
   broker: 'wss://broker.hivemq.com:8884/mqtt',
   topic: 'appscon26/quiz/q7v3mx92kd4t8p',
   teams: [
-    { name: 'Team 1', color: '#E63946' },
-    { name: 'Team 2', color: '#3A86FF' },
-    { name: 'Team 3', color: '#FFB703' },
-    { name: 'Team 4', color: '#2DC653' }
+    { name: 'Team A', color: '#E63946' },
+    { name: 'Team B', color: '#3A86FF' },
+    { name: 'Team C', color: '#FFB703' },
+    { name: 'Team D', color: '#2DC653' }
   ]
 };
 

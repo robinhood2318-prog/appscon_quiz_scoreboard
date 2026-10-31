@@ -91,7 +91,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13
       const a = document.createElement('a');
       a.className = 'pick'; a.href = '?team=' + (i + 1);
       a.style.setProperty('--pc', t.color); a.style.setProperty('--pink', inkFor(t.color));
-      a.innerHTML = '<b>' + (i + 1) + '</b><span></span>';
+      a.innerHTML = '<b>' + String.fromCharCode(65 + i) + '</b><span></span>';
       a.querySelector('span').textContent = t.name;
       $('#picks').appendChild(a);
       return a;

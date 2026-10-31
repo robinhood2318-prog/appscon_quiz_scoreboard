@@ -164,7 +164,7 @@ body.fs:not(.panel-open) { cursor: none; }
     <dt>C</dt><dd>Correct: adds points and locks the buzzers</dd>
     <dt>W</dt><dd>Wrong: deducts points and ends the question (no pass). If “pass to the next team” is ticked, it goes to the next team in line instead</dd>
     <dt>N</dt><dd>Hand the question to the next team in line, no points (manual override)</dd>
-    <dt>1–4</dt><dd>Buzz for a team from this keyboard (if a phone fails)</dd>
+    <dt>1–4</dt><dd>Buzz for a team from this keyboard (1 = A, 2 = B, 3 = C, 4 = D), if a phone fails</dd>
     <dt>U</dt><dd>Undo the last score</dd>
     <dt>T / Y</dt><dd>Start or pause the round clock / reset it (only when a round clock is set)</dd>
     <dt>J</dt><dd>Show or hide the join codes</dd>
@@ -197,6 +197,8 @@ body.fs:not(.panel-open) { cursor: none; }
     try { cfg = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
     catch (e) { cfg = Object.assign({}, DEF); }
   }
+  // numbered default names become letters (Team 1 → Team A)
+  cfg.names = (cfg.names || []).map((n, i) => (n === 'Team ' + (i + 1) ? 'Team ' + String.fromCharCode(65 + i) : n));
   const save = () => { if (MIRROR) return; try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
 
   const S = { phase: 'locked', order: [], cur: 0, results: {}, flash: null };

@@ -122,8 +122,8 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 .rpass[hidden] { display: none; }
 .rpass label { display: flex; align-items: center; gap: 6px; }
 .rpass input[type="checkbox"] { width: 16px; height: 16px; accent-color: #FFB703; }
-.rpass select { font: inherit; font-size: 13px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; }
-.rpass select:disabled { opacity: .45; }
+.rpass .pd { width: 120px; font: inherit; font-size: 14px; font-weight: 700; letter-spacing: .08em; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; text-align: left; }
+.rpass .pd.bad { border-color: var(--alert); }
 .rpts label { font-size: 12px; color: var(--muted); }
 .rpts input { width: 100%; margin-top: 3px; background: var(--surface); }
 .panel label.link { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
@@ -132,6 +132,8 @@ table.ov { width: 100%; border-collapse: separate; border-spacing: 0; font-varia
 .ract { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .trow { display: grid; grid-template-columns: 14px 1fr 86px auto; gap: 8px; align-items: center; margin: 8px 0; }
 .trow .sw { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
+.trow .sw.lt { width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #12162B; }
+.trow { grid-template-columns: 18px 1fr 86px auto !important; }
 .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .keys dt { font-weight: 800; }
 .keys dd { margin: 0; color: var(--muted); }
@@ -226,9 +228,10 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
 
   <h3>Keys</h3>
   <dl class="keys">
-    <dt>1–6</dt><dd>Select a team (or click its tile)</dd>
+    <dt>1–6</dt><dd>Select a team: 1 = A, 2 = B, 3 = C, 4 = D (or click its tile)</dd>
+    <dt>N</dt><dd>Next team in this part’s order for the next direct question (a part opens on its first team)</dd>
     <dt>C</dt><dd>Correct: adds the correct mark to the selected team (press once per sub-question)</dd>
-    <dt>W</dt><dd>Wrong or unanswered: adds the wrong mark (if any). If this part has Pass on, selects the next team in the part’s pass order and starts the pass timer; otherwise the question ends</dd>
+    <dt>W</dt><dd>Wrong or unanswered: adds the wrong mark (if any). If this part has Pass on, selects the next team in the part’s order and starts the pass timer; otherwise the question ends</dd>
     <dt>S</dt><dd>Pass: adds the pass mark (a passed question answered correctly, once per sub-question)</dd>
     <dt>B</dt><dd>Bonus: adds this round’s bonus mark</dd>
     <dt>M</dt><dd>Custom mark for a partly correct answer: ¼, ½, ¾ or any number (decimals allowed)</dd>
@@ -295,19 +298,32 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       { id: uid(), label: 'Round 5', name: '', correct: 10, wrong: -5, pass: 0, bonus: 0, parts: 1, tDirect: 0, tPass: 0, buzzer: true }
     ];
   }
-  // Pass order alternates part by part: 1st part forward (1→2→3→4),
-  // 2nd backward (4→3→2→1), 3rd forward …
+  const L = i => String.fromCharCode(65 + i);   // team letter: 0 → A
+  // Default answering order of the k-th part (title pages and the buzzer round
+  // not counted). Each round starts with a different team, and the 2nd part of
+  // a round runs backwards:
+  //   R1 P1 A B C D · R1 P2 D C B A · R2 P1 B C D A · R2 P2 A D C B
+  //   R3 P1 C D A B · R3 P2 B A D C · R4 P1 D A B C · R4 P2 C B A D
+  function defaultOrder(k, n) {
+    const ri = Math.floor(k / 2), fwd = k % 2 === 0;
+    const start = fwd ? ri % n : ((ri - 1) % n + n) % n;
+    return Array.from({ length: n }, (_, j) => (((fwd ? start + j : start - j) % n) + n) % n);
+  }
+  // A part's order if it is a full list of this quiz's teams, else the default.
+  function validOrder(o, n) { return Array.isArray(o) && o.length === n && new Set(o).size === n && o.every(x => Number.isInteger(x) && x >= 0 && x < n); }
+  // Give every part a valid order (keeps an order already set, unless forced).
   function alternateOrder(list, onlyMissing) {
-    let n = 0;
-    list.forEach(r => { if (r.title || r.buzzer) return; if (!onlyMissing || (r.dir !== 'fwd' && r.dir !== 'back')) r.dir = n % 2 ? 'back' : 'fwd'; n++; });
+    let k = 0; const n = (D && D.teams ? D.teams.length : 4);
+    list.forEach(r => { if (r.title || r.buzzer) return; if (!onlyMissing || !validOrder(r.order, n)) r.order = defaultOrder(k, n); k++; });
     return list;
   }
   function defaults() {
-    const rounds = alternateOrder(planRounds());
+    const rounds = planRounds();
+    let k = 0; rounds.forEach(r => { if (!r.title && !r.buzzer) r.order = defaultOrder(k++, 4); });
     return {
       title: 'APPSCON 2026 – Quiz competition', subtitle: 'Live scoreboard',
       rounds, cur: 0, layout: 3,
-      teams: [0, 1, 2, 3].map(i => ({ name: 'Team ' + (i + 1), color: COLORS[i] })),
+      teams: [0, 1, 2, 3].map(i => ({ name: 'Team ' + L(i), color: COLORS[i] })),
       scores: {}, history: []
     };
   }
@@ -368,6 +384,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       r.passOn = !(t && /^round\s*2$/i.test((t.label || '').trim()) && /^part\s*2$/i.test((r.label || '').trim()));
     }
   });
+  D.teams.forEach((t, i) => { if (t.name === 'Team ' + (i + 1)) t.name = 'Team ' + L(i); });
+  if (!MIRROR && (D.orders || 0) < 1) { alternateOrder(D.rounds, false); D.orders = 1; }   // new default orders, once
   alternateOrder(D.rounds, true);
   const save = () => {
     if (MIRROR) return;
@@ -390,7 +408,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       flash: lastFlash ? Object.assign({}, lastFlash, { left: Math.max(0, lastFlash.until - now) }) : null,
       timer: Object.assign({}, TM),
       bm: buzzMarks(),
-      rounds: D.rounds.map(r => r.title ? { title: true, label: r.label, name: r.name } : ({ label: r.label, name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, parts: r.parts, tDirect: r.tDirect, tPass: r.tPass, buzzer: !!r.buzzer, passOn: r.passOn !== false, dir: r.dir })),
+      rounds: D.rounds.map(r => r.title ? { title: true, label: r.label, name: r.name } : ({ label: r.label, name: r.name, correct: r.correct, wrong: r.wrong, pass: r.pass, bonus: r.bonus, parts: r.parts, tDirect: r.tDirect, tPass: r.tPass, buzzer: !!r.buzzer, passOn: r.passOn !== false, order: partOrder(r) })),
       teams: D.teams.map(t => ({ name: t.name, color: t.color })),
       scores: D.rounds.map(r => D.teams.map((_, t) => ((D.scores[r.id] || [])[t] || 0))),
       ts: D.ts || Date.now()
@@ -475,6 +493,22 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
 
   /* ---------- marking ---------- */
   let passOrigin = null;   // the team the question was first asked to
+  let directTeam = -1;     // the team that got the latest direct question
+  const partOrder = r => validOrder(r.order, D.teams.length) ? r.order : defaultOrder(partIndex(r), D.teams.length);
+  const partIndex = r => D.rounds.filter(x => !x.title && !x.buzzer).indexOf(r);
+  // N: the next team in this part's order gets the next direct question.
+  function nextDirect() {
+    const r = round();
+    if (r.title || r.buzzer) return;
+    const ord = partOrder(r);
+    const from = directTeam >= 0 ? directTeam : (sel >= 0 ? sel : -1);
+    const nx = from < 0 ? ord[0] : ord[(ord.indexOf(from) + 1) % ord.length];
+    sel = directTeam = nx; passOrigin = null; stopTimer(); render();
+  }
+  function firstTeam() {
+    const r = round();
+    sel = directTeam = (r.title || r.buzzer) ? -1 : partOrder(r)[0];
+  }
   function mark(kind) {
     if (isTitle()) { flashMsg('Title page: press → to go to Part 1', null); return; }
     if (round().buzzer) { flashMsg('This round is scored on the buzzer screen', null); return; }
@@ -493,7 +527,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       // Pass on: to the next team in this part's order (forward 1→2→3→4,
       // backward 4→3→2→1), until it comes back to the team that was asked.
       if (passOrigin === null) passOrigin = from;
-      const n = D.teams.length, nx = r.dir === 'back' ? (from - 1 + n) % n : (from + 1) % n;
+      const ord = partOrder(r), nx = ord[(ord.indexOf(from) + 1) % ord.length];
       if (nx === passOrigin) {
         passOrigin = null; stopTimer();
         flashMsg((pts ? nm + ', ' : '') + 'Passed round all teams', from, pts ? 'down' : '');
@@ -631,7 +665,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
       const el = document.createElement('div');
       el.className = 'tile';
       el.innerHTML = '<div class="nm"></div><div class="lb">This round</div><div class="sc"></div><div class="rd">Total <b></b></div><div class="badge" hidden></div>';
-      el.addEventListener('click', () => { if (MIRROR || gateOpen()) return; sel = sel === i ? -1 : i; passOrigin = null; render(); });
+      el.addEventListener('click', () => { if (MIRROR || gateOpen()) return; sel = sel === i ? -1 : i; directTeam = sel; passOrigin = null; render(); });
       box.appendChild(el);
       return el;
     });
@@ -655,11 +689,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     document.body.classList.toggle('titlepage', !!r.title);
     const mk = $('#marks'); mk.textContent = '';
     if (r.title) {
-      // Title page: list the parts of this round under its name.
-      for (let k = D.cur + 1; k < D.rounds.length && !D.rounds[k].title && !D.rounds[k].buzzer; k++) {
-        const p = D.rounds[k], sp = document.createElement('span'), b = document.createElement('b');
-        sp.textContent = p.label + (p.name ? ' ' : ''); b.textContent = p.name; sp.appendChild(b); mk.appendChild(sp);
-      }
+      // Title page: only the round's number and name. Part names appear on
+      // their own part pages only.
     } else {
     const bm = r.buzzer ? buzzMarks() : null;
     const each = !bm && r.parts > 1 ? ' each' : '';
@@ -671,8 +702,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     if (bm && !bm.passOn) pill('No pass', '');
     if (!bm && (r.tDirect || r.tPass)) pill('Time', [r.tDirect ? r.tDirect + ' s' : '', r.passOn && r.tPass ? 'pass ' + r.tPass + ' s' : ''].filter(Boolean).join(', '));
     if (!bm) {
+      pill('Order', partOrder(r).map(L).join(' → '));
       if (!r.passOn) pill('No pass', '');
-      else { const ids = D.teams.map((_, i) => i + 1); pill('Pass order', (r.dir === 'back' ? ids.reverse() : ids).join(' → ')); }
     }
     }
 
@@ -743,7 +774,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     passOrigin = null;
     const n = Math.max(0, Math.min(D.rounds.length - 1, D.cur + d));
     if (n === D.cur) return;
-    D.cur = n; sel = -1; stopTimer(); save(); render(); if (!$('#panel').hidden) renderPanel();
+    D.cur = n; stopTimer(); firstTeam(); save(); render(); if (!$('#panel').hidden) renderPanel();
   }
 
   /* ---------- quizmaster panel ---------- */
@@ -765,7 +796,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
         const show = c.querySelector('.show');
         show.textContent = k === D.cur ? 'On screen' : 'Show';
         show.className = k === D.cur ? 'primary show' : 'show';
-        show.addEventListener('click', () => { D.cur = k; sel = -1; stopTimer(); save(); render(); renderPanel(); });
+        show.addEventListener('click', () => { D.cur = k; stopTimer(); firstTeam(); save(); render(); renderPanel(); });
       };
       const moveDel = () => {
         const up = c.querySelector('.up'), dn = c.querySelector('.dn'), del = c.querySelector('.del');
@@ -800,16 +831,23 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
         '<div class="rtop"><input class="rlabel" aria-label="Part label"><input class="rname" aria-label="Part name"><button class="show"></button></div>' +
         '<div class="rpts"><label>Correct (C)<input type="number" class="pc"></label><label>Wrong (W)<input type="number" class="pw"></label><label>Pass (S)<input type="number" class="ps"></label><label>Bonus (B)<input type="number" class="pb"></label></div>' +
         '<div class="rpts r3"><label>Sub-questions<input type="number" class="pp" min="1"></label><label>Time, direct (s)<input type="number" class="pt" min="0"></label><label>Time, pass (s)<input type="number" class="pq" min="0"></label></div>' +
-        '<div class="rpass"><label><input type="checkbox" class="po"> Pass on (W passes to the next team)</label><label>Order <select class="pd"><option value="fwd">Forward 1→2→3→4</option><option value="back">Backward 4→3→2→1</option></select></label></div>' +
+        '<div class="rpass"><label><input type="checkbox" class="po"> Pass on (W passes to the next team in the order)</label><label>Order <input class="pd" spellcheck="false" autocomplete="off"></label></div>' +
         '<label class="link"><input type="checkbox" class="lk"> Scores come from the buzzer screen</label>' +
         '<div class="ract"><span><button class="ghost up" title="Move up">Move up</button><button class="ghost dn" title="Move down">Move down</button></span><button class="ghost del">Delete</button></div>';
       nameInputs(r.buzzer ? 'Round 5' : 'Part 1', r.buzzer ? 'Name of the buzzer round' : 'Name of this part');
       showBtn();
       const po = c.querySelector('.po'), pd = c.querySelector('.pd');
-      po.checked = !!r.passOn; pd.value = r.dir === 'back' ? 'back' : 'fwd'; pd.disabled = !r.passOn;
+      po.checked = !!r.passOn; pd.value = partOrder(r).map(L).join(' ');
+      pd.title = 'Order of the teams in this part, e.g. A B C D or D C B A. Used for passes (W) and for N.';
       if (r.buzzer) { c.querySelector('.rpass').hidden = true; }
-      po.addEventListener('change', () => { r.passOn = po.checked; pd.disabled = !r.passOn; save(); render(); });
-      pd.addEventListener('change', () => { r.dir = pd.value; save(); render(); });
+      po.addEventListener('change', () => { r.passOn = po.checked; save(); render(); });
+      pd.addEventListener('change', () => {
+        const n = D.teams.length;
+        const o = (pd.value.toUpperCase().match(/[A-Z]/g) || []).map(ch => ch.charCodeAt(0) - 65);
+        if (validOrder(o, n)) { r.order = o; pd.classList.remove('bad'); save(); render(); }
+        else { pd.classList.add('bad'); pd.title = 'Type each team letter once: ' + D.teams.map((_, i) => L(i)).join(' '); return; }
+        pd.value = o.map(L).join(' ');
+      });
       const lk = c.querySelector('.lk'); lk.checked = !!r.buzzer;
       lk.addEventListener('change', () => {
         D.rounds.forEach(o => { o.buzzer = false; });
@@ -836,7 +874,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     D.teams.forEach((t, i) => {
       const row = document.createElement('div');
       row.className = 'trow'; row.style.setProperty('--c', t.color);
-      row.innerHTML = '<span class="sw"></span><input aria-label="Team name"><span></span><button class="ghost del">Remove</button>';
+      row.innerHTML = '<span class="sw lt"></span><input aria-label="Team name"><span></span><button class="ghost del">Remove</button>';
+      row.querySelector('.lt').textContent = L(i);
       const inp = row.querySelector('input'); inp.value = t.name;
       inp.addEventListener('input', () => { t.name = inp.value; save(); pushNamesToBuzzer(); render(); });
       const del = row.querySelector('.del'); del.disabled = D.teams.length <= 2;
@@ -845,7 +884,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
         D.teams.splice(i, 1);
         Object.values(D.scores).forEach(a => a.splice(i, 1));
         D.history = D.history.filter(h => h.t !== i).map(h => (h.t > i ? Object.assign(h, { t: h.t - 1 }) : h));
-        sel = -1; save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
+        sel = -1; alternateOrder(D.rounds, true); save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
       });
       tl.appendChild(row);
     });
@@ -886,7 +925,7 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   $('#iSub').addEventListener('input', e => { D.subtitle = e.target.value; save(); render(); });
   $('#bPlan').addEventListener('click', () => {
     if (!confirm('Replace all rounds with the quiz plan (Round 1 title page, Part 1, Part 2 … Round 5 buzzer round, with marks and times)? Round and part names and all marks scored so far are cleared. Team names are kept.')) return;
-    D.rounds = alternateOrder(planRounds()); D.layout = 3; D.scores = {}; D.history = []; D.cur = 0; sel = -1; stopTimer(); pushNamesToBuzzer(true);
+    D.rounds = planRounds(); alternateOrder(D.rounds, false); D.layout = 3; D.scores = {}; D.history = []; D.cur = 0; sel = -1; stopTimer(); pushNamesToBuzzer(true);
     save(); render(); renderPanel();
   });
   $('#bAddPart').addEventListener('click', () => {
@@ -915,8 +954,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
   $('#bAddTeam').addEventListener('click', () => {
     if (D.teams.length >= 6) return;
     const used = D.teams.map(t => t.color);
-    D.teams.push({ name: 'Team ' + (D.teams.length + 1), color: COLORS.find(c => !used.includes(c)) || COLORS[D.teams.length % 6] });
-    save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
+    D.teams.push({ name: 'Team ' + L(D.teams.length), color: COLORS.find(c => !used.includes(c)) || COLORS[D.teams.length % 6] });
+    alternateOrder(D.rounds, true); save(); pushNamesToBuzzer(); syncBuzzer(); buildTiles(); render(); renderPanel();
   });
   $('#bUndo').addEventListener('click', undo);
   $('#bCustom').addEventListener('click', openCustom);
@@ -998,7 +1037,8 @@ body.mirror .tile, body.mirror .ovtab { cursor: none; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (keepFs && k !== 'escape' && k !== 'f') { $('#start').hidden = true; enterFs(); }
-    if (/^[1-6]$/.test(k) && +k <= D.teams.length) { sel = sel === +k - 1 ? -1 : +k - 1; passOrigin = null; render(); }
+    if (/^[1-6]$/.test(k) && +k <= D.teams.length) { sel = sel === +k - 1 ? -1 : +k - 1; directTeam = sel; passOrigin = null; render(); }
+    else if (k === 'n') nextDirect();
     else if (k === 'c') mark('correct');
     else if (k === 'w') mark('wrong');
     else if (k === 's') mark('pass');
